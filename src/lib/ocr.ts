@@ -5,15 +5,17 @@ export async function extractTextFromImages(
   imageDataUrls: string[],
   onProgress?: (pct: number) => void,
 ): Promise<string> {
-  const results = await Promise.all(
-    imageDataUrls.map((src, i) =>
-      recognizePage(src, (pct) => {
-        const base = (i / imageDataUrls.length) * 100;
-        const slice = pct / imageDataUrls.length;
-        onProgress?.(Math.round(base + slice));
-      }),
-    ),
-  );
+  // Sequential — parallel Tesseract workers OOM on mobile
+  const results: Awaited<ReturnType<typeof recognizePage>>[] = [];
+  for (let i = 0; i < imageDataUrls.length; i++) {
+    const src = imageDataUrls[i];
+    const r = await recognizePage(src, (pct) => {
+      const base = (i / imageDataUrls.length) * 100;
+      const slice = pct / imageDataUrls.length;
+      onProgress?.(Math.round(base + slice));
+    });
+    results.push(r);
+  }
   onProgress?.(100);
   return results
     .map((r, i) => {

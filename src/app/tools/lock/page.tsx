@@ -34,9 +34,14 @@ export default function LockPage() {
   };
 
   const unlock = async () => {
-    if (!doc) return;
+    if (!doc || !password.trim()) return;
     setBusy(true);
     try {
+      const h = await hashPassword(password.trim());
+      if (!doc.lockHash || h !== doc.lockHash) {
+        setStatus("Wrong password");
+        return;
+      }
       const updated = {
         ...doc,
         locked: false,
@@ -45,6 +50,7 @@ export default function LockPage() {
       };
       await saveDocument(updated);
       setDoc(updated);
+      setPassword("");
       setStatus("Lock removed.");
     } finally {
       setBusy(false);
@@ -71,30 +77,28 @@ export default function LockPage() {
             <strong>{doc.title}</strong>{" "}
             {doc.locked ? "(currently locked)" : "(unlocked)"}
           </p>
+          <label className="field">
+            <span>{doc.locked ? "Password to unlock" : "New password"}</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
           {!doc.locked ? (
-            <>
-              <label className="field">
-                <span>New password</span>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </label>
-              <button
-                type="button"
-                className="btn-primary"
-                disabled={busy || !password.trim()}
-                onClick={() => void lock()}
-              >
-                Lock document
-              </button>
-            </>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={busy || !password.trim()}
+              onClick={() => void lock()}
+            >
+              Lock document
+            </button>
           ) : (
             <button
               type="button"
               className="btn-secondary"
-              disabled={busy}
+              disabled={busy || !password.trim()}
               onClick={() => void unlock()}
             >
               Remove lock
@@ -103,7 +107,11 @@ export default function LockPage() {
           <button
             type="button"
             className="text-btn"
-            onClick={() => setDoc(null)}
+            onClick={() => {
+              setDoc(null);
+              setPassword("");
+              setStatus(null);
+            }}
           >
             Choose another
           </button>

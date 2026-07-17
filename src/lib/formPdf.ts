@@ -60,7 +60,7 @@ export async function exportFillablePdf(
       const h = Math.max(12, field.h * image.height);
 
       if (flatten) {
-        drawFlattenedField(pageNode, font, field, x, y, w, h);
+        await drawFlattenedField(pdf, pageNode, font, field, x, y, w, h);
         continue;
       }
 
@@ -99,10 +99,6 @@ export async function exportFillablePdf(
     }
   }
 
-  if (flatten) {
-    // nothing — already drawn
-  }
-
   if (doc.watermark?.trim()) {
     const pages = pdf.getPages();
     for (const p of pages) {
@@ -138,7 +134,8 @@ function uniqueFieldName(
   return name;
 }
 
-function drawFlattenedField(
+async function drawFlattenedField(
+  pdf: PDFDocument,
   page: ReturnType<PDFDocument["addPage"]>,
   font: Awaited<ReturnType<PDFDocument["embedFont"]>>,
   field: FormField,
@@ -171,6 +168,30 @@ function drawFlattenedField(
 
   const text = field.value || "";
   if (!text) return;
+
+  // Signatures are data-URL images — never draw as text
+  if (field.type === "signature" && text.startsWith("data:")) {
+    try {
+      const bytes = dataUrlToUint8(text);
+      const image =
+        text.includes("image/jpeg") || text.includes("image/jpg")
+          ? await pdf.embedJpg(bytes)
+          : await pdf.embedPng(bytes);
+      const scale = Math.min(w / image.width, h / image.height);
+      const iw = image.width * scale;
+      const ih = image.height * scale;
+      page.drawImage(image, {
+        x: x + (w - iw) / 2,
+        y: y + (h - ih) / 2,
+        width: iw,
+        height: ih,
+      });
+    } catch {
+      // skip broken signature image
+    }
+    return;
+  }
+
   const size = Math.max(8, Math.min(14, h * 0.55));
   page.drawText(text, {
     x: x + 2,
@@ -182,8 +203,7 @@ function drawFlattenedField(
   });
 }
 
-/** Load an existing PDF, extract AcroForm fields + rasterize first pages as images via canvas is hard without pdf.js.
- *  For import we keep PDF bytes and list field names/values for filling. */
+/** Load an existing PDF and extract AcroForm fields. */
 export async function inspectPdfForm(file: ArrayBuffer): Promise<{
   pageCount: number;
   fields: { name: string; type: string; value: string }[];

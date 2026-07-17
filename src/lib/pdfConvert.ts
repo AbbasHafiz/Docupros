@@ -11,8 +11,8 @@ export async function downloadDataUrl(dataUrl: string, filename: string) {
 
 async function loadPdfJs() {
   const pdfjs = await import("pdfjs-dist");
-  const pkg = await import("pdfjs-dist/package.json");
-  pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pkg.version}/build/pdf.worker.min.mjs`;
+  // Prefer bundled worker (offline / no CDN). Fall back to unpkg if missing.
+  pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
   return pdfjs;
 }
 

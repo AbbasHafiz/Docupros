@@ -198,6 +198,7 @@ export async function makeIdPhoto(
 }
 
 export async function imagesToLongImage(urls: string[]): Promise<string> {
+  if (!urls.length) throw new Error("No images to stitch");
   const images = await Promise.all(urls.map(loadImage));
   const width = Math.max(...images.map((i) => i.naturalWidth));
   const height = images.reduce(

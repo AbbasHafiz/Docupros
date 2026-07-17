@@ -24,7 +24,7 @@ function withUpdate(
 
 export function DocumentViewer({ id }: Props) {
   const router = useRouter();
-  const [doc, setDoc] = useState<DocumentRecord | null>(null);
+  const [doc, setDoc] = useState<DocumentRecord | null | undefined>(undefined);
   const [unlocked, setUnlocked] = useState(false);
   const [lockInput, setLockInput] = useState("");
   const [lockError, setLockError] = useState<string | null>(null);
@@ -51,6 +51,10 @@ export function DocumentViewer({ id }: Props) {
       cancelled = true;
     };
   }, [id]);
+
+  if (doc === undefined) {
+    return <div className="center-pad muted">Loading…</div>;
+  }
 
   if (!doc) {
     return (

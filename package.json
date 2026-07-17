@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "npx --yes serve@14 out -l 3000",
     "start:next": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:smoke": "node scripts/smoke-test.mjs",
+    "test:ops": "node scripts/ops-test.mjs"
   },
   "dependencies": {
     "docx": "^9.7.1",

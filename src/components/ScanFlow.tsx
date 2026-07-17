@@ -62,19 +62,27 @@ export function ScanFlow({
   const [pages, setPages] = useState<ScanPage[]>([]);
   const [busy, setBusy] = useState(false);
   const [existing, setExisting] = useState<DocumentRecord | null>(null);
+  const [appendReady, setAppendReady] = useState(!appendToId);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
     if (!appendToId) return;
+    let cancelled = false;
     void getDocument(appendToId).then((doc) => {
+      if (cancelled) return;
       if (doc) {
         setExisting(doc);
         setPages(doc.pages);
       }
+      setAppendReady(true);
     });
+    return () => {
+      cancelled = true;
+    };
   }, [appendToId]);
 
   const beginWithImage = async (dataUrl: string) => {
+    if (appendToId && !appendReady) return;
     setBusy(true);
     setRawImage(dataUrl);
     try {
@@ -121,7 +129,7 @@ export function ScanFlow({
       const page: ScanPage = {
         id: retakePageId ?? createId(),
         imageDataUrl: finalImage,
-        originalDataUrl: finalImage,
+        originalDataUrl: cropped,
         filter,
         createdAt: Date.now(),
         side: isId ? idSide : undefined,
@@ -129,11 +137,16 @@ export function ScanFlow({
 
       setPages((prev) => {
         if (retakePageId) {
-          return prev.map((p) =>
+          const mapped = prev.map((p) =>
             p.id === retakePageId
               ? { ...page, side: p.side ?? page.side }
               : p,
           );
+          // If retake id wasn't found (race), append instead of wiping
+          if (!prev.some((p) => p.id === retakePageId)) {
+            return [...prev, page];
+          }
+          return mapped;
         }
         if (!isId) return [...prev, page];
         const withoutSide = prev.filter((p) => p.side !== idSide);
@@ -167,20 +180,26 @@ export function ScanFlow({
 
   const saveAll = async () => {
     if (pages.length === 0) return;
+    if (appendToId && !appendReady) return;
     setBusy(true);
     try {
       const now = Date.now();
       const kind = isId || existing?.kind === "id_card" ? "id_card" : "document";
-      if (existing) {
+      if (existing || appendToId) {
+        const base = existing;
+        if (!base) {
+          alert("Still loading document. Try again.");
+          return;
+        }
         const updated: DocumentRecord = {
-          ...existing,
+          ...base,
           kind,
           pages,
           updatedAt: now,
           thumbnail: pages[0]?.imageDataUrl,
         };
         await saveDocument(updated);
-        startTransition(() => router.push(documentHref(existing.id)));
+        startTransition(() => router.push(documentHref(base.id)));
       } else {
         const id = createId();
         const doc: DocumentRecord = {
@@ -197,6 +216,8 @@ export function ScanFlow({
         await saveDocument(doc);
         startTransition(() => router.push(documentHref(id)));
       }
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Save failed — storage may be full");
     } finally {
       setBusy(false);
     }
@@ -277,10 +298,15 @@ export function ScanFlow({
       )}
 
       {step === "capture" && (
-        <CameraCapture
-          onCapture={(src) => void beginWithImage(src)}
-          onUpload={(src) => void beginWithImage(src)}
-        />
+        <>
+          {appendToId && !appendReady && (
+            <p className="busy-bar">Loading document…</p>
+          )}
+          <CameraCapture
+            onCapture={(src) => void beginWithImage(src)}
+            onUpload={(src) => void beginWithImage(src)}
+          />
+        </>
       )}
 
       {step === "crop" && rawImage && quad && (

@@ -15,7 +15,7 @@ function PdfFormInner() {
   const id = search.get("id") ?? "";
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [doc, setDoc] = useState<DocumentRecord | null>(null);
+  const [doc, setDoc] = useState<DocumentRecord | null | undefined>(undefined);
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -46,6 +46,10 @@ function PdfFormInner() {
         </Link>
       </div>
     );
+  }
+
+  if (doc === undefined) {
+    return <div className="center-pad muted">Opening…</div>;
   }
 
   if (!doc) {

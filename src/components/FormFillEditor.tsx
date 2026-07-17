@@ -34,6 +34,7 @@ export function FormFillEditor({ documentId }: Props) {
   const router = useRouter();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [doc, setDoc] = useState<DocumentRecord | null>(null);
+  const [loading, setLoading] = useState(true);
   const [pageIndex, setPageIndex] = useState(0);
   const [mode, setMode] = useState<Mode>("fill");
   const [fields, setFields] = useState<FormField[]>([]);
@@ -62,10 +63,12 @@ export function FormFillEditor({ documentId }: Props) {
       if (cancelled) return;
       if (!d) {
         setDoc(null);
+        setLoading(false);
         return;
       }
       setDoc(d);
       setFields(d.formFields ?? []);
+      setLoading(false);
     });
     return () => {
       cancelled = true;
@@ -194,6 +197,10 @@ export function FormFillEditor({ documentId }: Props) {
       setBusy(false);
     }
   };
+
+  if (loading) {
+    return <div className="center-pad muted">Opening form…</div>;
+  }
 
   if (!doc) {
     return (

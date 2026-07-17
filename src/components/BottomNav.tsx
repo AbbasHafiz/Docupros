@@ -15,6 +15,7 @@ export function BottomNav() {
   // Hide on immersive flows
   if (
     pathname?.startsWith("/scan") ||
+    pathname?.startsWith("/document") ||
     pathname?.includes("/edit") ||
     pathname?.includes("/form")
   ) {

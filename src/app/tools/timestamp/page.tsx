@@ -1,13 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import { DocPicker } from "@/components/DocPicker";
 import { saveDocument } from "@/lib/storage";
 import { stampTimestamp } from "@/lib/toolsOps";
 import type { DocumentRecord } from "@/lib/types";
+import { documentHref } from "@/lib/routes";
 
 export default function TimestampPage() {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
   const [custom, setCustom] = useState("");
   const [status, setStatus] = useState<string | null>(null);
@@ -23,7 +27,11 @@ export default function TimestampPage() {
           p.imageDataUrl,
           custom.trim() || undefined,
         );
-        pages.push({ ...p, imageDataUrl });
+        pages.push({
+          ...p,
+          originalDataUrl: p.originalDataUrl ?? p.imageDataUrl,
+          imageDataUrl,
+        });
       }
       const updated = {
         ...doc,
@@ -32,7 +40,8 @@ export default function TimestampPage() {
         updatedAt: Date.now(),
       };
       await saveDocument(updated);
-      setStatus("Timestamp stamped on all pages");
+      setStatus("Timestamp stamped — opening document…");
+      startTransition(() => router.push(documentHref(doc.id)));
     } finally {
       setBusy(false);
     }

@@ -33,8 +33,9 @@ export default function RemoveHandwritingPage() {
     try {
       const pages = [];
       for (const p of d.pages) {
+        const src = p.originalDataUrl ?? p.imageDataUrl;
         const imageDataUrl = await removeHandwriting(
-          p.imageDataUrl,
+          src,
           mode,
           strength / 100,
         );

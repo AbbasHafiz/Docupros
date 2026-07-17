@@ -100,14 +100,18 @@ export function PageEditor({ documentId, pageId }: Props) {
     {},
   );
   const strokePoints = useRef<{ x: number; y: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const naturalSizeRef = useRef({ w: 1, h: 1 });
 
   const page = doc?.pages[pageIndex];
 
   useEffect(() => {
     let cancelled = false;
     void getDocument(documentId).then((d) => {
-      if (cancelled || !d) {
-        if (!cancelled) setDoc(null);
+      if (cancelled) return;
+      if (!d) {
+        setDoc(null);
+        setLoading(false);
         return;
       }
       setDoc(d);
@@ -120,6 +124,7 @@ export function PageEditor({ documentId, pageId }: Props) {
       if (p) {
         setWords(p.ocrWords ?? []);
       }
+      setLoading(false);
     });
     return () => {
       cancelled = true;
@@ -134,6 +139,10 @@ export function PageEditor({ documentId, pageId }: Props) {
       const maxW = Math.min(window.innerWidth - 24, 900);
       const maxH = Math.min(window.innerHeight * 0.46, 520);
       const s = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+      naturalSizeRef.current = {
+        w: img.naturalWidth,
+        h: img.naturalHeight,
+      };
       setScale(s);
       canvas.width = Math.round(img.naturalWidth * s);
       canvas.height = Math.round(img.naturalHeight * s);
@@ -198,9 +207,10 @@ export function PageEditor({ documentId, pageId }: Props) {
   const pointerToImage = (e: React.PointerEvent) => {
     const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
+    const { w, h } = naturalSizeRef.current;
     return {
-      x: ((e.clientX - rect.left) / rect.width) * (canvas.width / scale),
-      y: ((e.clientY - rect.top) / rect.height) * (canvas.height / scale),
+      x: ((e.clientX - rect.left) / Math.max(1, rect.width)) * w,
+      y: ((e.clientY - rect.top) / Math.max(1, rect.height)) * h,
     };
   };
 
@@ -600,6 +610,10 @@ export function PageEditor({ documentId, pageId }: Props) {
     setImageTool(null);
     setCropRaw(null);
   };
+
+  if (loading) {
+    return <div className="center-pad muted">Opening editor…</div>;
+  }
 
   if (!doc) {
     return (
