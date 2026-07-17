@@ -17,7 +17,6 @@ import {
   pdfBase64ToImageDataUrls,
 } from "@/lib/pdfConvert";
 import { ShareSheet } from "./ShareSheet";
-import { ColleagueSheet } from "./ColleagueSheet";
 import { CnicPrintSheet } from "./CnicPrintSheet";
 
 type Props = { id: string };
@@ -43,7 +42,6 @@ export function DocumentViewer({ id }: Props) {
   const [busy, setBusy] = useState(false);
   const [manage, setManage] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const [colleagueOpen, setColleagueOpen] = useState(false);
   const [cnicPrintOpen, setCnicPrintOpen] = useState(false);
   const [renderStatus, setRenderStatus] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -514,14 +512,6 @@ export function DocumentViewer({ id }: Props) {
         >
           Share
         </button>
-        <button
-          type="button"
-          className="btn-secondary"
-          onClick={() => setColleagueOpen(true)}
-          disabled={busy}
-        >
-          Colleague
-        </button>
         {doc.pages.length >= 2 && (
           <Link
             href={`/tools/collage?id=${encodeURIComponent(doc.id)}`}
@@ -577,23 +567,6 @@ export function DocumentViewer({ id }: Props) {
         doc={doc}
         open={shareOpen}
         onClose={() => setShareOpen(false)}
-        onOpenColleague={() => {
-          setShareOpen(false);
-          setColleagueOpen(true);
-        }}
-        onStatus={(msg) => {
-          setRenderStatus(msg);
-          if (msg) {
-            window.setTimeout(() => setRenderStatus(null), 2500);
-          }
-        }}
-      />
-
-      <ColleagueSheet
-        doc={doc}
-        open={colleagueOpen}
-        onClose={() => setColleagueOpen(false)}
-        onDocUpdate={(updated) => setDoc(updated)}
         onStatus={(msg) => {
           setRenderStatus(msg);
           if (msg) {

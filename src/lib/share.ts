@@ -1,4 +1,4 @@
-import type { Colleague, DocumentRecord } from "./types";
+import type { DocumentRecord } from "./types";
 import { downloadBlob, exportDocumentPdf } from "./pdf";
 import { cnicFilename, exportCnicSizedPdf } from "./cnic";
 import { loadImage } from "./imageProcessing";
@@ -207,60 +207,5 @@ export async function shareToPlatform(
 
   downloadPrepared(prepared);
   openPlatformUrl(platform, prepared);
-  return "downloaded";
-}
-
-function digitsOnlyPhone(phone: string) {
-  return phone.replace(/[^\d+]/g, "").replace(/(?!^)\+/g, "");
-}
-
-/** Share a prepared PDF with a saved colleague via email / WhatsApp / system share. */
-export async function shareToColleague(
-  colleague: Colleague,
-  prepared: PreparedShare,
-  channel: "auto" | "email" | "whatsapp" | "system" = "auto",
-): Promise<"shared" | "downloaded" | "aborted"> {
-  const greeting = colleague.name ? `Hi ${colleague.name},` : "Hi,";
-  const body = `${greeting}\n\nPlease find "${prepared.title}" attached.\n\nShared from Docupros.\n\n(Attach: ${prepared.filename})`;
-  const personalized: PreparedShare = {
-    ...prepared,
-    text: body,
-  };
-
-  const prefer =
-    channel === "auto"
-      ? colleague.email
-        ? "email"
-        : colleague.phone
-          ? "whatsapp"
-          : "system"
-      : channel;
-
-  if (prefer === "system" || canUseSystemShare([personalized.file])) {
-    const result = await shareViaSystem(personalized, true);
-    if (result === "shared" || result === "aborted") return result;
-  }
-
-  downloadPrepared(personalized);
-
-  if (prefer === "email" && colleague.email) {
-    window.location.href = `mailto:${encodeURIComponent(colleague.email)}?subject=${encode(prepared.title)}&body=${encode(body)}`;
-    return "downloaded";
-  }
-
-  if (prefer === "whatsapp" && colleague.phone) {
-    const phone = digitsOnlyPhone(colleague.phone).replace(/^\+/, "");
-    window.open(
-      `https://wa.me/${phone}?text=${encode(body)}`,
-      "_blank",
-      "noopener,noreferrer",
-    );
-    return "downloaded";
-  }
-
-  if (colleague.email) {
-    window.location.href = `mailto:${encodeURIComponent(colleague.email)}?subject=${encode(prepared.title)}&body=${encode(body)}`;
-  }
-
   return "downloaded";
 }

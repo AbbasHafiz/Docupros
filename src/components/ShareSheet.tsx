@@ -16,21 +16,14 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onStatus?: (message: string | null) => void;
-  onOpenColleague?: () => void;
 };
 
 const PLATFORMS: {
-  id: SharePlatform | "colleague";
+  id: SharePlatform;
   label: string;
   icon: string;
   hint: string;
 }[] = [
-  {
-    id: "colleague",
-    label: "Colleague",
-    icon: "CO",
-    hint: "Saved coworkers",
-  },
   {
     id: "system",
     label: "More apps",
@@ -75,13 +68,7 @@ const PLATFORMS: {
   },
 ];
 
-export function ShareSheet({
-  doc,
-  open,
-  onClose,
-  onStatus,
-  onOpenColleague,
-}: Props) {
+export function ShareSheet({ doc, open, onClose, onStatus }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [prepared, setPrepared] = useState<PreparedShare | null>(null);
@@ -121,11 +108,7 @@ export function ShareSheet({
 
   if (!open) return null;
 
-  const runShare = async (platform: SharePlatform | "colleague") => {
-    if (platform === "colleague") {
-      onOpenColleague?.();
-      return;
-    }
+  const runShare = async (platform: SharePlatform) => {
     setError(null);
     setBusy(true);
     onStatus?.("Preparing…");
@@ -150,7 +133,6 @@ export function ShareSheet({
         );
         if (platform === "download") onClose();
       }
-      // aborted → stay open
     } catch (e) {
       setError(e instanceof Error ? e.message : "Share failed");
       onStatus?.(null);
@@ -197,22 +179,14 @@ export function ShareSheet({
         {error && <p className="share-error">{error}</p>}
 
         <div className="share-grid" role="list">
-          {PLATFORMS.filter(
-            (p) =>
-              (p.id !== "system" || hasNativeShare) &&
-              (p.id !== "colleague" || Boolean(onOpenColleague)),
-          ).map((p) => (
+          {PLATFORMS.filter((p) => p.id !== "system" || hasNativeShare).map(
+            (p) => (
               <button
                 key={p.id}
                 type="button"
                 className="share-tile"
                 role="listitem"
-                disabled={
-                  busy ||
-                  (p.id !== "image" &&
-                    p.id !== "colleague" &&
-                    !prepared)
-                }
+                disabled={busy || (!prepared && p.id !== "image")}
                 onClick={() => void runShare(p.id)}
               >
                 <span className="share-tile-icon" aria-hidden>
