@@ -10,7 +10,7 @@ export const TOOL_SECTIONS: {
   {
     title: "Scan",
     items: [
-      { id: "id", label: "ID Cards", href: "/scan?mode=id_card", color: "#0ea5e9", icon: "🪪", status: "ready" },
+      { id: "id", label: "CNIC Scan", href: "/scan?mode=id_card", color: "#0ea5e9", icon: "🪪", status: "ready" },
       { id: "ocr", label: "Extract Text", href: "/tools/extract-text", color: "#6366f1", icon: "Aa", status: "ready" },
       { id: "idphoto", label: "ID Photo Maker", href: "/tools/id-photo", color: "#8b5cf6", icon: "👤", status: "ready" },
       { id: "book", label: "Book", href: "/scan?mode=book", color: "#f59e0b", icon: "📕", status: "ready" },
@@ -58,7 +58,7 @@ export const TOOL_SECTIONS: {
     title: "Utilities",
     items: [
       { id: "print", label: "Print", href: "/tools/pick?action=print", color: "#334155", icon: "🖨", status: "ready" },
-      { id: "idprint", label: "ID Print", href: "/scan?mode=id_card", color: "#0ea5e9", icon: "🪪", status: "ready" },
+      { id: "idprint", label: "CNIC Print", href: "/scan?mode=id_card", color: "#0ea5e9", icon: "🪪", status: "ready" },
       { id: "qr", label: "Scan Code", href: "/tools/soon?name=Scan%20Code", color: "#111827", icon: "▣", status: "soon" },
       { id: "ai", label: "Docupros AI", href: "/tools/soon?name=Docupros%20AI", color: "#14b8a6", icon: "✦", status: "soon" },
     ],

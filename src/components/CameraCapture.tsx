@@ -5,9 +5,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 type Props = {
   onCapture: (dataUrl: string) => void;
   onUpload: (dataUrl: string) => void;
+  /** Camera guide overlay — Pakistani CNIC frame when "cnic" */
+  guide?: "document" | "cnic";
+  guideLabel?: string;
 };
 
-export function CameraCapture({ onCapture, onUpload }: Props) {
+export function CameraCapture({
+  onCapture,
+  onUpload,
+  guide = "document",
+  guideLabel,
+}: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -98,7 +106,16 @@ export function CameraCapture({ onCapture, onUpload }: Props) {
             <p>{error}</p>
           </div>
         )}
-        <div className="viewfinder" aria-hidden />
+        <div
+          className={`viewfinder ${guide === "cnic" ? "cnic" : ""}`}
+          aria-hidden
+        >
+          {guide === "cnic" && (
+            <span className="viewfinder-label">
+              {guideLabel || "CNIC 85.6 × 53.98 mm"}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="capture-actions">

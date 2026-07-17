@@ -18,6 +18,7 @@ import {
 import { rotateImage } from "@/lib/editOperations";
 import { saveDocument, getDocument } from "@/lib/storage";
 import { stampTimestamp } from "@/lib/toolsOps";
+import { normalizeToCnicAspect } from "@/lib/cnic";
 import { documentHref } from "@/lib/routes";
 import {
   SCAN_FILTERS,
@@ -146,7 +147,10 @@ export function ScanFlow({
     if (!rawImage || !quad) return;
     setBusy(true);
     try {
-      const warped = await warpPerspective(rawImage, quad);
+      let warped = await warpPerspective(rawImage, quad);
+      if (isId) {
+        warped = await normalizeToCnicAspect(warped);
+      }
       setCropped(warped);
       const next: Partial<Record<ScanFilter, string>> = { original: warped };
       await Promise.all(
@@ -249,7 +253,7 @@ export function ScanFlow({
         const doc: DocumentRecord = {
           id,
           title: isId
-            ? `ID Card ${new Date(now).toLocaleString()}`
+            ? `CNIC ${new Date(now).toLocaleString()}`
             : `Scan ${new Date(now).toLocaleString()}`,
           pages,
           kind,
@@ -273,13 +277,13 @@ export function ScanFlow({
   const title = isId
     ? step === "capture"
       ? idSide === "front"
-        ? "ID Front"
-        : "ID Back"
+        ? "CNIC Front"
+        : "CNIC Back"
       : step === "crop"
-        ? "Crop ID"
+        ? "Crop CNIC"
         : step === "enhance"
-          ? "Enhance ID"
-          : "ID Ready"
+          ? "Enhance CNIC"
+          : "CNIC Ready"
     : step === "capture"
       ? "Scan"
       : step === "crop"
@@ -321,7 +325,8 @@ export function ScanFlow({
 
       {isId && step === "capture" && (
         <div className="id-banner">
-          Scan the <strong>{idSide}</strong> of your ID card
+          Pakistani CNIC · {idSide === "front" ? "Front" : "Back"} · 85.6 ×
+          53.98 mm
           {idSide === "back" && front ? " · Front saved" : ""}
         </div>
       )}
@@ -349,6 +354,14 @@ export function ScanFlow({
           <CameraCapture
             onCapture={(src) => void beginWithImage(src)}
             onUpload={(src) => void beginWithImage(src)}
+            guide={isId ? "cnic" : "document"}
+            guideLabel={
+              isId
+                ? idSide === "front"
+                  ? "CNIC Front · align card in frame"
+                  : "CNIC Back · align card in frame"
+                : undefined
+            }
           />
         </>
       )}
@@ -424,7 +437,7 @@ export function ScanFlow({
               {isId
                 ? idSide === "front"
                   ? "Save front → scan back"
-                  : "Save back"
+                  : "Save CNIC back"
                 : retakePageId
                   ? "Replace page"
                   : "Add page"}
@@ -483,7 +496,7 @@ export function ScanFlow({
               onClick={() => void saveAll()}
               disabled={busy || pages.length === 0 || (isId && !front)}
             >
-              {isId ? "Save ID card" : "Save document"}
+              {isId ? "Save CNIC" : "Save document"}
             </button>
           </div>
         </div>

@@ -313,13 +313,13 @@ export async function detectDocumentQuad(imageSrc: string): Promise<Quad> {
   };
 }
 
-/** ID-card friendly default: centered landscape card aspect ~1.586. */
+/** ID-card friendly default: Pakistani CNIC aspect 85.6 / 53.98. */
 export function defaultIdQuad(width: number, height: number): Quad {
-  const targetRatio = 85.6 / 54;
-  let cardW = width * 0.82;
+  const targetRatio = 85.6 / 53.98;
+  let cardW = width * 0.86;
   let cardH = cardW / targetRatio;
-  if (cardH > height * 0.72) {
-    cardH = height * 0.72;
+  if (cardH > height * 0.7) {
+    cardH = height * 0.7;
     cardW = cardH * targetRatio;
   }
   const x0 = (width - cardW) / 2;

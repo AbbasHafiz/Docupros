@@ -9,7 +9,12 @@ import { deleteDocument, getDocument, saveDocument } from "@/lib/storage";
 import { downloadBlob, exportDocumentPdf, printDocumentPages } from "@/lib/pdf";
 import { extractTextFromImages } from "@/lib/ocr";
 import { rebuildDocumentText } from "@/lib/editOperations";
-import { exportIdCardPdf, printIdCard } from "@/lib/idPrint";
+import {
+  cnicFilename,
+  exportCnicA4Pdf,
+  exportCnicSizedPdf,
+  printCnic,
+} from "@/lib/cnic";
 import { hashPassword } from "@/lib/toolsOps";
 import { documentHref } from "@/lib/routes";
 import { createId } from "@/lib/id";
@@ -190,18 +195,19 @@ export function DocumentViewer({ id }: Props) {
     setBusy(true);
     try {
       if (isId && front) {
-        const blob = await exportIdCardPdf({
+        const opts = {
           front: front.imageDataUrl,
           back: back?.imageDataUrl,
           title: doc.title,
-          copies: 1,
           watermark: doc.watermark,
-        });
+          copies: 1 as const,
+        };
+        // Card-size CNIC PDF for share/digital; A4 sheet when printing layout requested
+        const blob = a4
+          ? await exportCnicA4Pdf(opts)
+          : await exportCnicSizedPdf(opts);
         if (blob.size < 500) throw new Error("PDF export produced an empty file");
-        downloadBlob(
-          blob,
-          `${doc.title.replace(/\s+/g, "-").toLowerCase()}-id.pdf`,
-        );
+        downloadBlob(blob, cnicFilename(doc.title, a4 ? "print" : "card"));
       } else {
         const pages = doc.pages
           .map((p) => p.imageDataUrl)
@@ -224,11 +230,42 @@ export function DocumentViewer({ id }: Props) {
     }
   };
 
+  const shareCnic = async () => {
+    if (!front) return;
+    setBusy(true);
+    try {
+      const blob = await exportCnicSizedPdf({
+        front: front.imageDataUrl,
+        back: back?.imageDataUrl,
+        title: doc.title,
+        watermark: doc.watermark,
+      });
+      const file = new File([blob], cnicFilename(doc.title), {
+        type: "application/pdf",
+      });
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          title: doc.title || "Pakistan CNIC",
+          text: "CNIC 85.6×53.98 mm",
+          files: [file],
+        });
+      } else {
+        downloadBlob(blob, cnicFilename(doc.title));
+      }
+    } catch (e) {
+      if ((e as Error)?.name !== "AbortError") {
+        alert(e instanceof Error ? e.message : "Share failed");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const doPrint = async () => {
     setBusy(true);
     try {
       if (isId && front) {
-        await printIdCard({
+        await printCnic({
           front: front.imageDataUrl,
           back: back?.imageDataUrl,
           title: doc.title,
@@ -252,7 +289,7 @@ export function DocumentViewer({ id }: Props) {
     if (!front) return;
     setBusy(true);
     try {
-      await printIdCard({
+      await printCnic({
         front: front.imageDataUrl,
         back: back?.imageDataUrl,
         title: doc.title,
@@ -356,7 +393,8 @@ export function DocumentViewer({ id }: Props) {
 
       {isId && (
         <div className="id-banner soft">
-          ID card · Front{back ? " + Back" : ""} ready for print
+          Pakistani CNIC · 85.6 × 53.98 mm · Front
+          {back ? " + Back" : ""} ready
         </div>
       )}
 
@@ -427,7 +465,7 @@ export function DocumentViewer({ id }: Props) {
           onClick={() => void doPrint()}
           disabled={busy}
         >
-          {isId ? "ID Print" : "Print"}
+          {isId ? "Print CNIC" : "Print"}
         </button>
         {isId && (
           <button
@@ -445,8 +483,28 @@ export function DocumentViewer({ id }: Props) {
           onClick={() => void exportPdf(isId ? false : true)}
           disabled={busy}
         >
-          Export PDF
+          {isId ? "Export CNIC" : "Export PDF"}
         </button>
+        {isId && (
+          <>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => void exportPdf(true)}
+              disabled={busy}
+            >
+              Export A4 print
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => void shareCnic()}
+              disabled={busy}
+            >
+              Share CNIC
+            </button>
+          </>
+        )}
         {doc.sourcePdfBase64 && (
           <button
             type="button"
