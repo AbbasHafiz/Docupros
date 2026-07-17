@@ -8,9 +8,16 @@ import type { ScanMode } from "@/lib/types";
 function ScanPageInner() {
   const params = useSearchParams();
   const appendToId = params.get("append") ?? undefined;
+  const retakePageId = params.get("retake") ?? undefined;
   const modeParam = params.get("mode");
   const mode: ScanMode = modeParam === "id_card" ? "id_card" : "document";
-  return <ScanFlow appendToId={appendToId} mode={mode} />;
+  return (
+    <ScanFlow
+      appendToId={appendToId}
+      mode={mode}
+      retakePageId={retakePageId}
+    />
+  );
 }
 
 export default function ScanPage() {

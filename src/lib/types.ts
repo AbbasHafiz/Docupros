@@ -54,13 +54,11 @@ export type DocumentKind = "document" | "id_card";
 export type ScanPage = {
   id: string;
   imageDataUrl: string;
-  /** Original scan before edits (for reset). */
   originalDataUrl?: string;
   filter: ScanFilter;
   createdAt: number;
   ocrText?: string;
   ocrWords?: OcrWord[];
-  /** For ID cards: front or back. */
   side?: "front" | "back";
 };
 
@@ -77,10 +75,22 @@ export type DocumentRecord = {
 };
 
 export type ScanStep = "capture" | "crop" | "enhance" | "review";
-
 export type ScanMode = "document" | "id_card";
 
-export type EditorTool = "view" | "erase" | "enhance" | "text" | "annotate";
+/** Bottom category tabs matching CamScanner-style editor. */
+export type EditorTab = "images" | "markup" | "page";
+
+/** Tools under Images tab. */
+export type ImageTool =
+  | "crop"
+  | "filter"
+  | "editText"
+  | "smartErase"
+  | "retake"
+  | "sign"
+  | "addText";
+
+export type MarkupTool = "pen" | "highlight";
 
 export type EnhanceAdjustments = {
   brightness: number;

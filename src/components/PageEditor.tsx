@@ -3,45 +3,70 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AppHeader } from "./AppHeader";
+import { CropEditor } from "./CropEditor";
+import { FilterPicker } from "./FilterPicker";
+import { SignaturePad } from "./SignaturePad";
 import type {
   DocumentRecord,
-  EditorTool,
+  EditorTab,
   EnhanceAdjustments,
+  ImageTool,
+  MarkupTool,
   OcrWord,
+  Quad,
   ScanFilter,
   ScanPage,
 } from "@/lib/types";
 import { SCAN_FILTERS } from "@/lib/types";
 import { getDocument, saveDocument } from "@/lib/storage";
-import { applyFilter, loadImage } from "@/lib/imageProcessing";
+import {
+  applyFilter,
+  defaultQuad,
+  detectDocumentQuad,
+  loadImage,
+  warpPerspective,
+} from "@/lib/imageProcessing";
 import { recognizePage } from "@/lib/ocr";
 import {
   applyEnhanceAdjustments,
+  applySignature,
   drawAnnotationStroke,
   drawFreeText,
-  eraseAtPoints,
   eraseRegion,
   findReplaceOnImage,
   rebuildDocumentText,
   replaceWordOnImage,
   rotateImage,
+  smartEraseAtPoints,
 } from "@/lib/editOperations";
+import { downloadBlob, exportDocumentPdf } from "@/lib/pdf";
 
 type Props = {
   documentId: string;
   pageId?: string;
 };
 
+const IMAGE_TOOLS: { id: ImageTool; label: string; icon: string }[] = [
+  { id: "crop", label: "Crop", icon: "▢" },
+  { id: "filter", label: "Filter", icon: "◎" },
+  { id: "editText", label: "Edit Text", icon: "T" },
+  { id: "smartErase", label: "Smart Erase", icon: "⌫" },
+  { id: "retake", label: "Retake", icon: "↻" },
+  { id: "sign", label: "Sign", icon: "✎" },
+  { id: "addText", label: "Add Text", icon: "A" },
+];
+
 export function PageEditor({ documentId, pageId }: Props) {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [doc, setDoc] = useState<DocumentRecord | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
-  const [tool, setTool] = useState<EditorTool>("enhance");
+  const [tab, setTab] = useState<EditorTab>("images");
+  const [imageTool, setImageTool] = useState<ImageTool | null>(null);
+  const [markupTool, setMarkupTool] = useState<MarkupTool>("pen");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const [brushSize, setBrushSize] = useState(28);
+  const [brushSize, setBrushSize] = useState(32);
   const [drawing, setDrawing] = useState(false);
   const [adjust, setAdjust] = useState<EnhanceAdjustments>({
     brightness: 0,
@@ -56,13 +81,18 @@ export function PageEditor({ documentId, pageId }: Props) {
   const [ocrProgress, setOcrProgress] = useState(0);
   const [addText, setAddText] = useState("");
   const [addFontSize, setAddFontSize] = useState(28);
-  const [placeMode, setPlaceMode] = useState(false);
+  const [placeMode, setPlaceMode] = useState<"text" | "sign" | null>(null);
   const [scale, setScale] = useState(1);
   const [inkColor, setInkColor] = useState("#e11d48");
   const [inkWidth, setInkWidth] = useState(4);
-  const [docTextDraft, setDocTextDraft] = useState("");
+  const [signOpen, setSignOpen] = useState(false);
+  const [signature, setSignature] = useState<string | null>(null);
+  const [cropRaw, setCropRaw] = useState<string | null>(null);
+  const [cropQuad, setCropQuad] = useState<Quad | null>(null);
+  const [previews, setPreviews] = useState<Partial<Record<ScanFilter, string>>>(
+    {},
+  );
   const strokePoints = useRef<{ x: number; y: number }[]>([]);
-  const baseImageRef = useRef<string | null>(null);
 
   const page = doc?.pages[pageIndex];
 
@@ -75,17 +105,13 @@ export function PageEditor({ documentId, pageId }: Props) {
       }
       setDoc(d);
       const idx = pageId
-        ? Math.max(
-            0,
-            d.pages.findIndex((p) => p.id === pageId),
-          )
+        ? Math.max(0, d.pages.findIndex((p) => p.id === pageId))
         : 0;
-      setPageIndex(idx === -1 ? 0 : idx);
-      const p = d.pages[idx === -1 ? 0 : idx];
+      const safe = idx === -1 ? 0 : idx;
+      setPageIndex(safe);
+      const p = d.pages[safe];
       if (p) {
         setWords(p.ocrWords ?? []);
-        setDocTextDraft(p.ocrText ?? "");
-        baseImageRef.current = p.originalDataUrl ?? p.imageDataUrl;
       }
     });
     return () => {
@@ -93,44 +119,47 @@ export function PageEditor({ documentId, pageId }: Props) {
     };
   }, [documentId, pageId]);
 
-  const paintCanvas = useCallback(async (src: string, overlayWords?: OcrWord[]) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const img = await loadImage(src);
-    const maxW = Math.min(window.innerWidth - 24, 900);
-    const maxH = Math.min(window.innerHeight * 0.48, 560);
-    const s = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
-    setScale(s);
-    canvas.width = Math.round(img.naturalWidth * s);
-    canvas.height = Math.round(img.naturalHeight * s);
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const paintCanvas = useCallback(
+    async (src: string, overlayWords?: OcrWord[]) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const img = await loadImage(src);
+      const maxW = Math.min(window.innerWidth - 24, 900);
+      const maxH = Math.min(window.innerHeight * 0.46, 520);
+      const s = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+      setScale(s);
+      canvas.width = Math.round(img.naturalWidth * s);
+      canvas.height = Math.round(img.naturalHeight * s);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-    const list = overlayWords ?? words;
-    if (tool === "text" && list.length) {
-      for (const w of list) {
-        const active = w.id === selectedWordId;
-        ctx.strokeStyle = active ? "#0f766e" : "rgba(45, 212, 191, 0.7)";
-        ctx.lineWidth = active ? 2.5 : 1.5;
-        ctx.fillStyle = active
-          ? "rgba(15, 118, 110, 0.18)"
-          : "rgba(45, 212, 191, 0.08)";
-        const x = w.bbox.x0 * s;
-        const y = w.bbox.y0 * s;
-        const ww = (w.bbox.x1 - w.bbox.x0) * s;
-        const hh = (w.bbox.y1 - w.bbox.y0) * s;
-        ctx.fillRect(x, y, ww, hh);
-        ctx.strokeRect(x, y, ww, hh);
+      const list = overlayWords ?? words;
+      if (imageTool === "editText" && list.length) {
+        for (const w of list) {
+          const active = w.id === selectedWordId;
+          ctx.strokeStyle = active ? "#16a34a" : "rgba(22, 163, 74, 0.65)";
+          ctx.lineWidth = active ? 2.5 : 1.5;
+          ctx.fillStyle = active
+            ? "rgba(22, 163, 74, 0.18)"
+            : "rgba(22, 163, 74, 0.08)";
+          const x = w.bbox.x0 * s;
+          const y = w.bbox.y0 * s;
+          const ww = (w.bbox.x1 - w.bbox.x0) * s;
+          const hh = (w.bbox.y1 - w.bbox.y0) * s;
+          ctx.fillRect(x, y, ww, hh);
+          ctx.strokeRect(x, y, ww, hh);
+        }
       }
-    }
-  }, [selectedWordId, tool, words]);
+    },
+    [imageTool, selectedWordId, words],
+  );
 
   useEffect(() => {
-    if (!page) return;
+    if (!page || cropRaw) return;
     void paintCanvas(page.imageDataUrl);
-  }, [page, paintCanvas, tool]);
+  }, [page, paintCanvas, cropRaw]);
 
   const persistPage = async (
     nextImage: string,
@@ -162,16 +191,95 @@ export function PageEditor({ documentId, pageId }: Props) {
   const pointerToImage = (e: React.PointerEvent) => {
     const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * (canvas.width / scale);
-    const y = ((e.clientY - rect.top) / rect.height) * (canvas.height / scale);
-    return { x, y };
+    return {
+      x: ((e.clientX - rect.left) / rect.width) * (canvas.width / scale),
+      y: ((e.clientY - rect.top) / rect.height) * (canvas.height / scale),
+    };
+  };
+
+  const selectTool = async (tool: ImageTool) => {
+    setPlaceMode(null);
+    setImageTool(tool);
+    setTab("images");
+
+    if (tool === "retake" && page) {
+      router.push(
+        `/scan?append=${documentId}&retake=${page.id}${
+          doc?.kind === "id_card" ? "&mode=id_card" : ""
+        }`,
+      );
+      return;
+    }
+
+    if (tool === "sign") {
+      setSignOpen(true);
+      return;
+    }
+
+    if (tool === "crop" && page) {
+      setBusy(true);
+      try {
+        const src = page.originalDataUrl ?? page.imageDataUrl;
+        setCropRaw(src);
+        const img = await loadImage(src);
+        const detected = await detectDocumentQuad(src);
+        setCropQuad(
+          detected ?? defaultQuad(img.naturalWidth, img.naturalHeight),
+        );
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    if (tool === "filter" && page) {
+      setBusy(true);
+      try {
+        const next: Partial<Record<ScanFilter, string>> = {
+          original: page.originalDataUrl ?? page.imageDataUrl,
+        };
+        const base = page.originalDataUrl ?? page.imageDataUrl;
+        await Promise.all(
+          SCAN_FILTERS.filter((f) => f.id !== "original").map(async (f) => {
+            next[f.id] = await applyFilter(base, f.id);
+          }),
+        );
+        setPreviews(next);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    if (tool === "editText" && page) {
+      if (!words.length) {
+        setBusy(true);
+        setStatus("Detecting text…");
+        setOcrProgress(0);
+        try {
+          const result = await recognizePage(page.imageDataUrl, setOcrProgress);
+          setWords(result.words);
+          await persistPage(page.imageDataUrl, {
+            ocrText: result.text,
+            ocrWords: result.words,
+          });
+          setStatus(
+            result.words.length
+              ? "Tap a word to edit"
+              : "No text detected",
+          );
+        } finally {
+          setBusy(false);
+        }
+      }
+    }
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
-    if (!page) return;
+    if (!page || cropRaw) return;
     const pt = pointerToImage(e);
 
-    if (tool === "text" && placeMode && addText.trim()) {
+    if (placeMode === "text" && addText.trim()) {
       void (async () => {
         setBusy(true);
         try {
@@ -180,11 +288,11 @@ export function PageEditor({ documentId, pageId }: Props) {
             addText,
             pt.x,
             pt.y,
-            addFontSize / scale,
+            addFontSize,
           );
-          setPlaceMode(false);
+          setPlaceMode(null);
           await persistPage(next);
-          setStatus("Text added to page");
+          setStatus("Text added");
         } finally {
           setBusy(false);
         }
@@ -192,7 +300,28 @@ export function PageEditor({ documentId, pageId }: Props) {
       return;
     }
 
-    if (tool === "text") {
+    if (placeMode === "sign" && signature) {
+      void (async () => {
+        setBusy(true);
+        try {
+          const next = await applySignature(
+            page.imageDataUrl,
+            signature,
+            pt.x,
+            pt.y,
+            Math.min(page ? 280 : 280, 320),
+          );
+          setPlaceMode(null);
+          await persistPage(next);
+          setStatus("Signature placed");
+        } finally {
+          setBusy(false);
+        }
+      })();
+      return;
+    }
+
+    if (imageTool === "editText") {
       const hit = words.find(
         (w) =>
           pt.x >= w.bbox.x0 &&
@@ -207,35 +336,39 @@ export function PageEditor({ documentId, pageId }: Props) {
       return;
     }
 
-    if (tool !== "erase" && tool !== "annotate") return;
-    setDrawing(true);
-    strokePoints.current = [pt];
-    canvasRef.current?.setPointerCapture(e.pointerId);
+    if (
+      imageTool === "smartErase" ||
+      (tab === "markup" && (markupTool === "pen" || markupTool === "highlight"))
+    ) {
+      setDrawing(true);
+      strokePoints.current = [pt];
+      canvasRef.current?.setPointerCapture(e.pointerId);
+    }
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
-    if (!drawing || (tool !== "erase" && tool !== "annotate")) return;
-    strokePoints.current.push(pointerToImage(e));
-    // Live preview
+    if (!drawing || !page) return;
+    const pt = pointerToImage(e);
+
+    strokePoints.current.push(pt);
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx || !page) return;
+    if (!canvas || !ctx) return;
     void loadImage(page.imageDataUrl).then((img) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      if (tool === "erase") {
-        ctx.fillStyle = "rgba(243, 248, 250, 0.85)";
-        ctx.strokeStyle = "#0f766e";
-        ctx.lineWidth = 1.5;
+      if (imageTool === "smartErase") {
+        ctx.fillStyle = "rgba(255,255,255,0.75)";
         for (const p of strokePoints.current) {
           ctx.beginPath();
           ctx.arc(p.x * scale, p.y * scale, brushSize * scale, 0, Math.PI * 2);
           ctx.fill();
-          ctx.stroke();
         }
       } else {
-        ctx.strokeStyle = inkColor;
-        ctx.lineWidth = inkWidth * scale;
+        ctx.strokeStyle =
+          markupTool === "highlight" ? "rgba(250, 204, 21, 0.45)" : inkColor;
+        ctx.lineWidth =
+          (markupTool === "highlight" ? inkWidth * 3 : inkWidth) * scale;
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
         ctx.beginPath();
@@ -254,23 +387,29 @@ export function PageEditor({ documentId, pageId }: Props) {
     setDrawing(false);
     const points = strokePoints.current;
     strokePoints.current = [];
+    if (imageTool === "crop") return;
     if (points.length === 0) return;
+
     void (async () => {
       setBusy(true);
       try {
-        if (tool === "erase") {
-          const next = await eraseAtPoints(page.imageDataUrl, points, brushSize);
+        if (imageTool === "smartErase") {
+          const next = await smartEraseAtPoints(
+            page.imageDataUrl,
+            points,
+            brushSize,
+          );
           await persistPage(next);
-          setStatus("Erased marks");
-        } else if (tool === "annotate" && points.length > 1) {
+          setStatus("Smart erase applied");
+        } else if (tab === "markup") {
           const next = await drawAnnotationStroke(
             page.imageDataUrl,
             points,
-            inkColor,
-            inkWidth,
+            markupTool === "highlight" ? "rgba(250, 204, 21, 0.45)" : inkColor,
+            markupTool === "highlight" ? inkWidth * 3 : inkWidth,
           );
           await persistPage(next);
-          setStatus("Annotation added");
+          setStatus("Markup saved");
         }
       } finally {
         setBusy(false);
@@ -278,26 +417,16 @@ export function PageEditor({ documentId, pageId }: Props) {
     })();
   };
 
-  const runOcr = async () => {
-    if (!page) return;
+  const applyCropPerspective = async () => {
+    if (!cropRaw || !cropQuad) return;
     setBusy(true);
-    setStatus("Scanning text…");
-    setOcrProgress(0);
     try {
-      const result = await recognizePage(page.imageDataUrl, setOcrProgress);
-      setWords(result.words);
-      setSelectedWordId(null);
-      setDocTextDraft(result.text);
-      await persistPage(page.imageDataUrl, {
-        ocrText: result.text,
-        ocrWords: result.words,
-      });
-      setTool("text");
-      setStatus(
-        result.words.length
-          ? `Found ${result.words.length} words — tap one to edit`
-          : "No text detected",
-      );
+      const warped = await warpPerspective(cropRaw, cropQuad);
+      await persistPage(warped);
+      setCropRaw(null);
+      setCropQuad(null);
+      setImageTool(null);
+      setStatus("Crop applied");
     } finally {
       setBusy(false);
     }
@@ -312,18 +441,13 @@ export function PageEditor({ documentId, pageId }: Props) {
       const next = await replaceWordOnImage(page.imageDataUrl, word, editText);
       const nextWords = words
         .filter((w) => w.id !== word.id)
-        .concat(
-          editText.trim()
-            ? [{ ...word, text: editText.trim() }]
-            : [],
-        );
+        .concat(editText.trim() ? [{ ...word, text: editText.trim() }] : []);
       setWords(nextWords);
-      setSelectedWordId(editText.trim() ? word.id : null);
       await persistPage(next, {
         ocrWords: nextWords,
         ocrText: nextWords.map((w) => w.text).join(" "),
       });
-      setStatus("Text updated on page");
+      setStatus("Text updated");
     } finally {
       setBusy(false);
     }
@@ -339,7 +463,6 @@ export function PageEditor({ documentId, pageId }: Props) {
       const nextWords = words.filter((w) => w.id !== word.id);
       setWords(nextWords);
       setSelectedWordId(null);
-      setEditText("");
       await persistPage(next, {
         ocrWords: nextWords,
         ocrText: nextWords.map((w) => w.text).join(" "),
@@ -366,9 +489,21 @@ export function PageEditor({ documentId, pageId }: Props) {
         ocrWords: remainingWords,
         ocrText: remainingWords.map((w) => w.text).join(" "),
       });
-      setStatus(
-        changed ? `Replaced ${changed} match${changed === 1 ? "" : "es"}` : "No matches",
-      );
+      setStatus(changed ? `Replaced ${changed}` : "No matches");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const applyFilterChoice = async (filter: ScanFilter) => {
+    if (!page) return;
+    setBusy(true);
+    try {
+      const base = page.originalDataUrl ?? page.imageDataUrl;
+      const next =
+        filter === "original" ? base : await applyFilter(base, filter);
+      await persistPage(next, { filter });
+      setStatus(`${SCAN_FILTERS.find((f) => f.id === filter)?.label} filter`);
     } finally {
       setBusy(false);
     }
@@ -381,59 +516,70 @@ export function PageEditor({ documentId, pageId }: Props) {
       const next = await applyEnhanceAdjustments(page.imageDataUrl, adjust);
       await persistPage(next);
       setAdjust({ brightness: 0, contrast: 0, sharpness: 0 });
-      setStatus("Photo enhanced");
+      setStatus("Enhanced");
     } finally {
       setBusy(false);
     }
   };
 
-  const applyQuickFilter = async (filter: ScanFilter) => {
-    if (!page) return;
+  const shareDoc = async () => {
+    if (!doc) return;
     setBusy(true);
     try {
-      const source = page.originalDataUrl ?? page.imageDataUrl;
-      const next =
-        filter === "original" ? source : await applyFilter(source, filter);
-      await persistPage(next, { filter });
-      setStatus(`${SCAN_FILTERS.find((f) => f.id === filter)?.label ?? "Filter"} applied`);
+      const blob = await exportDocumentPdf(
+        doc.title,
+        doc.pages.map((p) => p.imageDataUrl),
+        { a4: true, watermark: doc.watermark },
+      );
+      const file = new File(
+        [blob],
+        `${doc.title.replace(/\s+/g, "-").toLowerCase()}.pdf`,
+        { type: "application/pdf" },
+      );
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ title: doc.title, files: [file] });
+      } else {
+        downloadBlob(blob, file.name);
+        setStatus("PDF downloaded to share");
+      }
+    } catch {
+      setStatus("Share cancelled");
     } finally {
       setBusy(false);
     }
   };
 
-  const rotate = async (deg: 90 | 180 | 270) => {
-    if (!page) return;
-    setBusy(true);
-    try {
-      const next = await rotateImage(page.imageDataUrl, deg);
-      setWords([]);
-      await persistPage(next, { ocrWords: [], ocrText: "" });
-      setStatus(`Rotated ${deg}°`);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const resetPage = async () => {
-    if (!page) return;
-    const original = page.originalDataUrl;
-    if (!original) {
-      setStatus("Nothing to reset");
+  const deleteCurrentPage = async () => {
+    if (!doc || !page) return;
+    if (doc.pages.length <= 1) {
+      alert("Keep at least one page.");
       return;
     }
-    setBusy(true);
-    try {
-      setWords([]);
-      setAdjust({ brightness: 0, contrast: 0, sharpness: 0 });
-      await persistPage(original, {
-        ocrWords: [],
-        ocrText: "",
-        filter: "original",
-      });
-      setStatus("Page reset to original scan");
-    } finally {
-      setBusy(false);
-    }
+    if (!confirm("Delete this page?")) return;
+    const pages = doc.pages.filter((_, i) => i !== pageIndex);
+    const updated = {
+      ...doc,
+      pages,
+      thumbnail: pages[0]?.imageDataUrl,
+      updatedAt: Date.now(),
+    };
+    await saveDocument(updated);
+    setDoc(updated);
+    setPageIndex(Math.min(pageIndex, pages.length - 1));
+    setWords(pages[Math.min(pageIndex, pages.length - 1)]?.ocrWords ?? []);
+  };
+
+  const goPage = (dir: -1 | 1) => {
+    if (!doc) return;
+    const next = Math.min(
+      doc.pages.length - 1,
+      Math.max(0, pageIndex + dir),
+    );
+    setPageIndex(next);
+    setWords(doc.pages[next]?.ocrWords ?? []);
+    setSelectedWordId(null);
+    setImageTool(null);
+    setCropRaw(null);
   };
 
   if (!doc) {
@@ -450,7 +596,7 @@ export function PageEditor({ documentId, pageId }: Props) {
   if (!page) {
     return (
       <div className="center-pad">
-        <p className="muted">No pages in this document.</p>
+        <p className="muted">No pages.</p>
         <Link href={`/document/${doc.id}`} className="btn-primary">
           Back
         </Link>
@@ -459,365 +605,439 @@ export function PageEditor({ documentId, pageId }: Props) {
   }
 
   return (
-    <div className="page-editor">
-      <AppHeader
-        title="Edit page"
-        backHref={`/document/${doc.id}`}
-        action={
+    <div className="cs-editor">
+      <header className="cs-topbar">
+        <button
+          type="button"
+          className="cs-icon-btn"
+          aria-label="Close"
+          onClick={() => router.push(`/document/${doc.id}`)}
+        >
+          ✕
+        </button>
+        <div className="cs-top-actions">
           <button
             type="button"
             className="text-btn"
+            onClick={() => void shareDoc()}
+            disabled={busy}
+          >
+            Share
+          </button>
+          <button
+            type="button"
+            className="btn-done"
             onClick={() => router.push(`/document/${doc.id}`)}
           >
             Done
           </button>
-        }
-      />
+        </div>
+      </header>
 
       {(busy || status) && (
         <div className="busy-bar" aria-live="polite">
-          {busy ? "Working…" : status}
-          {busy && ocrProgress > 0 && tool === "text" ? ` ${ocrProgress}%` : ""}
+          {busy
+            ? `Working…${ocrProgress && imageTool === "editText" ? ` ${ocrProgress}%` : ""}`
+            : status}
         </div>
       )}
 
-      <div className="editor-canvas-wrap">
-        <canvas
-          ref={canvasRef}
-          className={`editor-canvas tool-${tool} ${placeMode ? "place-mode" : ""}`}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-        />
-      </div>
-
-      {doc.pages.length > 1 && (
-        <div className="page-strip compact">
-          {doc.pages.map((p, i) => (
+      {cropRaw && cropQuad ? (
+        <div className="step-panel">
+          <CropEditor
+            imageSrc={cropRaw}
+            quad={cropQuad}
+            onChange={setCropQuad}
+          />
+          <div className="step-actions">
             <button
-              key={p.id}
               type="button"
-              className={`page-thumb-btn ${i === pageIndex ? "is-active" : ""}`}
+              className="btn-secondary"
               onClick={() => {
-                setPageIndex(i);
-                setWords(p.ocrWords ?? []);
-                setSelectedWordId(null);
-                setDocTextDraft(p.ocrText ?? "");
-                baseImageRef.current = p.originalDataUrl ?? p.imageDataUrl;
+                setCropRaw(null);
+                setCropQuad(null);
+                setImageTool(null);
               }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.imageDataUrl} alt={`Page ${i + 1}`} />
+              Cancel
             </button>
-          ))}
-        </div>
-      )}
-
-      <nav className="editor-tools" aria-label="Edit tools">
-        {(
-          [
-            ["enhance", "Enhance"],
-            ["erase", "Erase"],
-            ["text", "Text"],
-            ["annotate", "Mark"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            className={`tool-tab ${tool === id ? "is-active" : ""}`}
-            onClick={() => {
-              setTool(id);
-              setPlaceMode(false);
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
-
-      <div className="editor-panel">
-        {tool === "enhance" && (
-          <div className="panel-stack">
-            <p className="panel-title">Enhance photo</p>
-            <div className="filter-row tight">
-{SCAN_FILTERS.map((f) => (
-                  <button
-                    key={f.id}
-                    type="button"
-                    className={`mini-chip ${page.filter === f.id ? "is-active" : ""}`}
-                    onClick={() => void applyQuickFilter(f.id)}
-                    disabled={busy}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-            </div>
-            <label className="slider-row">
-              <span>Brightness</span>
-              <input
-                type="range"
-                min={-50}
-                max={50}
-                value={adjust.brightness}
-                onChange={(e) =>
-                  setAdjust((a) => ({
-                    ...a,
-                    brightness: Number(e.target.value),
-                  }))
-                }
-              />
-            </label>
-            <label className="slider-row">
-              <span>Contrast</span>
-              <input
-                type="range"
-                min={-50}
-                max={50}
-                value={adjust.contrast}
-                onChange={(e) =>
-                  setAdjust((a) => ({
-                    ...a,
-                    contrast: Number(e.target.value),
-                  }))
-                }
-              />
-            </label>
-            <label className="slider-row">
-              <span>Sharpen</span>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={adjust.sharpness}
-                onChange={(e) =>
-                  setAdjust((a) => ({
-                    ...a,
-                    sharpness: Number(e.target.value),
-                  }))
-                }
-              />
-            </label>
-            <div className="step-actions stacked">
-              <button
-                type="button"
-                className="btn-primary"
-                disabled={busy}
-                onClick={() => void applyAdjustments()}
-              >
-                Apply enhancement
-              </button>
-              <div className="row-actions">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  disabled={busy}
-                  onClick={() => void rotate(90)}
-                >
-                  Rotate 90°
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  disabled={busy}
-                  onClick={() => void resetPage()}
-                >
-                  Reset page
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {tool === "erase" && (
-          <div className="panel-stack">
-            <p className="panel-title">Erase marks</p>
-            <p className="hint">
-              Drag over stains, fingerprints, or unwanted writing. Eraser matches
-              nearby paper color.
-            </p>
-            <label className="slider-row">
-              <span>Brush {brushSize}px</span>
-              <input
-                type="range"
-                min={8}
-                max={80}
-                value={brushSize}
-                onChange={(e) => setBrushSize(Number(e.target.value))}
-              />
-            </label>
-          </div>
-        )}
-
-        {tool === "text" && (
-          <div className="panel-stack">
-            <p className="panel-title">Text operations</p>
             <button
               type="button"
               className="btn-primary"
               disabled={busy}
-              onClick={() => void runOcr()}
+              onClick={() => void applyCropPerspective()}
             >
-              {words.length ? "Re-scan text (OCR)" : "Detect text (OCR)"}
+              Apply crop
             </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="cs-stage">
+            <button
+              type="button"
+              className="cs-trash"
+              aria-label="Delete page"
+              onClick={() => void deleteCurrentPage()}
+            >
+              🗑
+            </button>
+            <canvas
+              ref={canvasRef}
+              className={`editor-canvas ${
+                imageTool === "smartErase" ||
+                placeMode ||
+                tab === "markup"
+                  ? "tool-erase"
+                  : ""
+              }`}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={onPointerUp}
+            />
+          </div>
 
-            {selectedWordId && (
-              <div className="text-edit-box">
-                <label className="field">
-                  <span>Selected word</span>
-                  <input
-                    value={editText}
-                    onChange={(e) => setEditText(e.target.value)}
-                    placeholder="New text"
-                  />
-                </label>
-                <div className="row-actions">
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    disabled={busy}
-                    onClick={() => void applyWordEdit()}
-                  >
-                    Replace on page
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-danger"
-                    disabled={busy}
-                    onClick={() => void eraseSelectedWord()}
-                  >
-                    Erase text
-                  </button>
-                </div>
-              </div>
-            )}
+          <div className="cs-pager">
+            <button
+              type="button"
+              className="cs-icon-btn"
+              disabled={pageIndex === 0}
+              onClick={() => goPage(-1)}
+              aria-label="Previous page"
+            >
+              ‹
+            </button>
+            <span>
+              {pageIndex + 1}/{doc.pages.length}
+            </span>
+            <button
+              type="button"
+              className="cs-icon-btn"
+              disabled={pageIndex >= doc.pages.length - 1}
+              onClick={() => goPage(1)}
+              aria-label="Next page"
+            >
+              ›
+            </button>
+          </div>
+        </>
+      )}
 
+      {/* Active tool panels */}
+      {!cropRaw && imageTool === "filter" && (
+        <div className="cs-sheet">
+          <FilterPicker
+            value={page.filter}
+            previewSrc={page.originalDataUrl ?? page.imageDataUrl}
+            previews={previews}
+            onChange={(f) => void applyFilterChoice(f)}
+          />
+          <label className="slider-row">
+            <span>Brightness</span>
+            <input
+              type="range"
+              min={-50}
+              max={50}
+              value={adjust.brightness}
+              onChange={(e) =>
+                setAdjust((a) => ({ ...a, brightness: Number(e.target.value) }))
+              }
+            />
+          </label>
+          <label className="slider-row">
+            <span>Contrast</span>
+            <input
+              type="range"
+              min={-50}
+              max={50}
+              value={adjust.contrast}
+              onChange={(e) =>
+                setAdjust((a) => ({ ...a, contrast: Number(e.target.value) }))
+              }
+            />
+          </label>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={busy}
+            onClick={() => void applyAdjustments()}
+          >
+            Apply enhance
+          </button>
+        </div>
+      )}
+
+      {!cropRaw && imageTool === "editText" && (
+        <div className="cs-sheet">
+          <p className="panel-title">Edit Text</p>
+          {selectedWordId ? (
             <div className="text-edit-box">
-              <p className="subhead">Find & replace</p>
               <label className="field">
-                <span>Find</span>
+                <span>Selected</span>
                 <input
-                  value={findText}
-                  onChange={(e) => setFindText(e.target.value)}
-                  placeholder="Exact word"
-                />
-              </label>
-              <label className="field">
-                <span>Replace with</span>
-                <input
-                  value={replaceText}
-                  onChange={(e) => setReplaceText(e.target.value)}
-                  placeholder="Leave blank to erase"
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
                 />
               </label>
               <div className="row-actions">
                 <button
                   type="button"
-                  className="btn-secondary"
-                  disabled={busy || !findText.trim() || !words.length}
-                  onClick={() => void runFindReplace(false)}
+                  className="btn-primary"
+                  onClick={() => void applyWordEdit()}
                 >
-                  Replace one
+                  Replace
                 </button>
                 <button
                   type="button"
-                  className="btn-secondary"
-                  disabled={busy || !findText.trim() || !words.length}
-                  onClick={() => void runFindReplace(true)}
+                  className="btn-danger"
+                  onClick={() => void eraseSelectedWord()}
                 >
-                  Replace all
+                  Erase
                 </button>
               </div>
             </div>
-
-            <div className="text-edit-box">
-              <p className="subhead">Add text</p>
-              <label className="field">
-                <span>Content</span>
-                <input
-                  value={addText}
-                  onChange={(e) => setAddText(e.target.value)}
-                  placeholder="Type text to place"
-                />
-              </label>
-              <label className="slider-row">
-                <span>Size {addFontSize}</span>
-                <input
-                  type="range"
-                  min={12}
-                  max={72}
-                  value={addFontSize}
-                  onChange={(e) => setAddFontSize(Number(e.target.value))}
-                />
-              </label>
+          ) : (
+            <p className="hint">Tap a highlighted word on the page.</p>
+          )}
+          <div className="text-edit-box">
+            <p className="subhead">Find & replace</p>
+            <label className="field">
+              <span>Find</span>
+              <input
+                value={findText}
+                onChange={(e) => setFindText(e.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span>Replace</span>
+              <input
+                value={replaceText}
+                onChange={(e) => setReplaceText(e.target.value)}
+              />
+            </label>
+            <div className="row-actions">
               <button
                 type="button"
-                className={`btn-secondary ${placeMode ? "is-active-btn" : ""}`}
-                disabled={!addText.trim() || busy}
-                onClick={() => setPlaceMode((v) => !v)}
+                className="btn-secondary"
+                onClick={() => void runFindReplace(false)}
               >
-                {placeMode ? "Tap page to place…" : "Place on page"}
+                One
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => void runFindReplace(true)}
+              >
+                All
               </button>
             </div>
-
-            {page.ocrText !== undefined && (
-              <label className="field">
-                <span>Editable extracted text</span>
-                <textarea
-                  className="ocr-text"
-                  rows={6}
-                  value={docTextDraft}
-                  onChange={(e) => setDocTextDraft(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  disabled={busy}
-                  onClick={() =>
-                    void persistPage(page.imageDataUrl, {
-                      ocrText: docTextDraft,
-                    })
-                  }
-                >
-                  Save text
-                </button>
-              </label>
-            )}
           </div>
-        )}
+        </div>
+      )}
 
-        {tool === "annotate" && (
-          <div className="panel-stack">
-            <p className="panel-title">Mark / annotate</p>
-            <p className="hint">Draw highlights or marks on the scan.</p>
+      {!cropRaw && imageTool === "smartErase" && (
+        <div className="cs-sheet">
+          <p className="panel-title">Smart Erase</p>
+          <p className="hint">
+            Brush over stains, stamps, or marks — fills with paper color.
+          </p>
+          <label className="slider-row">
+            <span>Brush {brushSize}px</span>
+            <input
+              type="range"
+              min={12}
+              max={90}
+              value={brushSize}
+              onChange={(e) => setBrushSize(Number(e.target.value))}
+            />
+          </label>
+        </div>
+      )}
+
+      {!cropRaw && imageTool === "addText" && (
+        <div className="cs-sheet">
+          <p className="panel-title">Add Text</p>
+          <label className="field">
+            <span>Text</span>
+            <input
+              value={addText}
+              onChange={(e) => setAddText(e.target.value)}
+              placeholder="Type text"
+            />
+          </label>
+          <label className="slider-row">
+            <span>Size {addFontSize}</span>
+            <input
+              type="range"
+              min={12}
+              max={72}
+              value={addFontSize}
+              onChange={(e) => setAddFontSize(Number(e.target.value))}
+            />
+          </label>
+          <button
+            type="button"
+            className={`btn-secondary ${placeMode === "text" ? "is-active-btn" : ""}`}
+            disabled={!addText.trim()}
+            onClick={() => setPlaceMode((m) => (m === "text" ? null : "text"))}
+          >
+            {placeMode === "text" ? "Tap page to place…" : "Place on page"}
+          </button>
+        </div>
+      )}
+
+      {!cropRaw && imageTool === "crop" && (
+        <div className="cs-sheet">
+          <p className="hint">Adjust corners on the crop view above.</p>
+        </div>
+      )}
+
+      {!cropRaw && tab === "markup" && (
+        <div className="cs-sheet">
+          <div className="row-actions">
+            <button
+              type="button"
+              className={`mini-chip ${markupTool === "pen" ? "is-active" : ""}`}
+              onClick={() => setMarkupTool("pen")}
+            >
+              Pen
+            </button>
+            <button
+              type="button"
+              className={`mini-chip ${markupTool === "highlight" ? "is-active" : ""}`}
+              onClick={() => setMarkupTool("highlight")}
+            >
+              Highlight
+            </button>
+          </div>
+          {markupTool === "pen" && (
             <div className="row-actions">
-              {["#e11d48", "#2563eb", "#ca8a04", "#0f766e", "#111111"].map(
+              {["#e11d48", "#2563eb", "#ca8a04", "#16a34a", "#111111"].map(
                 (c) => (
                   <button
                     key={c}
                     type="button"
                     className={`swatch ${inkColor === c ? "is-active" : ""}`}
                     style={{ background: c }}
-                    aria-label={`Ink ${c}`}
                     onClick={() => setInkColor(c)}
                   />
                 ),
               )}
             </div>
-            <label className="slider-row">
-              <span>Stroke {inkWidth}px</span>
-              <input
-                type="range"
-                min={2}
-                max={24}
-                value={inkWidth}
-                onChange={(e) => setInkWidth(Number(e.target.value))}
-              />
-            </label>
+          )}
+          <label className="slider-row">
+            <span>Size {inkWidth}</span>
+            <input
+              type="range"
+              min={2}
+              max={24}
+              value={inkWidth}
+              onChange={(e) => setInkWidth(Number(e.target.value))}
+            />
+          </label>
+        </div>
+      )}
+
+      {!cropRaw && tab === "page" && (
+        <div className="cs-sheet">
+          <div className="row-actions">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() =>
+                void (async () => {
+                  setBusy(true);
+                  try {
+                    const next = await rotateImage(page.imageDataUrl, 90);
+                    setWords([]);
+                    await persistPage(next, { ocrWords: [], ocrText: "" });
+                  } finally {
+                    setBusy(false);
+                  }
+                })()
+              }
+            >
+              Rotate 90°
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => void selectTool("retake")}
+            >
+              Retake
+            </button>
+            <button
+              type="button"
+              className="btn-danger"
+              onClick={() => void deleteCurrentPage()}
+            >
+              Delete page
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom CamScanner-style chrome */}
+      <div className="cs-bottom">
+        <div className="cs-tabs">
+          {(
+            [
+              ["images", "Images"],
+              ["markup", "Markup"],
+              ["page", "Page"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={`cs-tab ${tab === id ? "is-active" : ""}`}
+              onClick={() => {
+                setTab(id);
+                if (id !== "images") setImageTool(null);
+                setPlaceMode(null);
+                setCropRaw(null);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "images" && (
+          <div className="cs-tools">
+            {IMAGE_TOOLS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={`cs-tool ${imageTool === t.id ? "is-active" : ""}`}
+                onClick={() => void selectTool(t.id)}
+              >
+                <span className="cs-tool-icon" aria-hidden>
+                  {t.icon}
+                </span>
+                <span>{t.label}</span>
+              </button>
+            ))}
           </div>
         )}
       </div>
+
+      <SignaturePad
+        open={signOpen}
+        onClose={() => setSignOpen(false)}
+        onSave={(dataUrl) => {
+          setSignature(dataUrl);
+          setSignOpen(false);
+          setImageTool("sign");
+          setPlaceMode("sign");
+          setStatus("Tap the page to place signature");
+        }}
+      />
+
+      {placeMode === "sign" && (
+        <div className="busy-bar">Tap page to place signature</div>
+      )}
     </div>
   );
 }

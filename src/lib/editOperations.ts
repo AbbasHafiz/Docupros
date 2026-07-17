@@ -298,6 +298,90 @@ export async function drawAnnotationStroke(
   });
 }
 
+/** Smart erase: brush that aggressively fills dark marks with paper color. */
+export async function smartEraseAtPoints(
+  imageSrc: string,
+  points: { x: number; y: number }[],
+  brushSize: number,
+): Promise<string> {
+  return withCanvas(imageSrc, (ctx, canvas) => {
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const radius = brushSize * 1.15;
+    for (const p of points) {
+      const [pr, pg, pb] = samplePaperColor(imageData, p.x, p.y, brushSize);
+      // Prefer bright paper sample
+      const paperLum = 0.299 * pr + 0.587 * pg + 0.114 * pb;
+      const fill: [number, number, number] =
+        paperLum > 180 ? [pr, pg, pb] : [248, 248, 248];
+      const r2 = radius * radius;
+      const minX = Math.max(0, Math.floor(p.x - radius));
+      const maxX = Math.min(canvas.width - 1, Math.ceil(p.x + radius));
+      const minY = Math.max(0, Math.floor(p.y - radius));
+      const maxY = Math.min(canvas.height - 1, Math.ceil(p.y + radius));
+      for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          const dx = x - p.x;
+          const dy = y - p.y;
+          if (dx * dx + dy * dy > r2) continue;
+          const i = (y * canvas.width + x) * 4;
+          const lum =
+            0.299 * imageData.data[i] +
+            0.587 * imageData.data[i + 1] +
+            0.114 * imageData.data[i + 2];
+          // Stronger replace for darker ink/stains; soft blend on midtones
+          const t = lum < 200 ? 1 : 0.55;
+          imageData.data[i] = clamp(imageData.data[i] * (1 - t) + fill[0] * t);
+          imageData.data[i + 1] = clamp(
+            imageData.data[i + 1] * (1 - t) + fill[1] * t,
+          );
+          imageData.data[i + 2] = clamp(
+            imageData.data[i + 2] * (1 - t) + fill[2] * t,
+          );
+        }
+      }
+    }
+    ctx.putImageData(imageData, 0, 0);
+  });
+}
+
+/** Rectangular crop in image pixel coordinates. */
+export async function cropRect(
+  imageSrc: string,
+  box: BBox,
+): Promise<string> {
+  const img = await loadImage(imageSrc);
+  const x0 = Math.max(0, Math.floor(box.x0));
+  const y0 = Math.max(0, Math.floor(box.y0));
+  const x1 = Math.min(img.naturalWidth, Math.ceil(box.x1));
+  const y1 = Math.min(img.naturalHeight, Math.ceil(box.y1));
+  const w = Math.max(1, x1 - x0);
+  const h = Math.max(1, y1 - y0);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas unsupported");
+  ctx.drawImage(img, x0, y0, w, h, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", 0.92);
+}
+
+/** Place a signature image onto the page. */
+export async function applySignature(
+  imageSrc: string,
+  signatureDataUrl: string,
+  x: number,
+  y: number,
+  width: number,
+): Promise<string> {
+  const sig = await loadImage(signatureDataUrl);
+  const aspect = sig.naturalHeight / Math.max(1, sig.naturalWidth);
+  const drawW = width;
+  const drawH = width * aspect;
+  return withCanvas(imageSrc, (ctx) => {
+    ctx.drawImage(sig, x, y, drawW, drawH);
+  });
+}
+
 export function rebuildDocumentText(pageTexts: (string | undefined)[]): string {
   return pageTexts
     .map((t, i) => {

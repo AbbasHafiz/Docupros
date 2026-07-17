@@ -28,9 +28,14 @@ import {
 type Props = {
   appendToId?: string;
   mode?: ScanMode;
+  retakePageId?: string;
 };
 
-export function ScanFlow({ appendToId, mode = "document" }: Props) {
+export function ScanFlow({
+  appendToId,
+  mode = "document",
+  retakePageId,
+}: Props) {
   const router = useRouter();
   const isId = mode === "id_card";
   const [step, setStep] = useState<"capture" | "crop" | "enhance" | "review">(
@@ -101,7 +106,7 @@ export function ScanFlow({ appendToId, mode = "document" }: Props) {
     try {
       const finalImage = await applyFilter(cropped, filter);
       const page: ScanPage = {
-        id: createId(),
+        id: retakePageId ?? createId(),
         imageDataUrl: finalImage,
         originalDataUrl: finalImage,
         filter,
@@ -110,6 +115,13 @@ export function ScanFlow({ appendToId, mode = "document" }: Props) {
       };
 
       setPages((prev) => {
+        if (retakePageId) {
+          return prev.map((p) =>
+            p.id === retakePageId
+              ? { ...page, side: p.side ?? page.side }
+              : p,
+          );
+        }
         if (!isId) return [...prev, page];
         const withoutSide = prev.filter((p) => p.side !== idSide);
         return [...withoutSide, page];
@@ -119,6 +131,11 @@ export function ScanFlow({ appendToId, mode = "document" }: Props) {
       setQuad(null);
       setCropped(null);
       setPreviews({});
+
+      if (retakePageId) {
+        setStep("review");
+        return;
+      }
 
       if (isId) {
         if (idSide === "front") {
@@ -133,7 +150,7 @@ export function ScanFlow({ appendToId, mode = "document" }: Props) {
     } finally {
       setBusy(false);
     }
-  }, [cropped, filter, idSide, isId]);
+  }, [cropped, filter, idSide, isId, retakePageId]);
 
   const saveAll = async () => {
     if (pages.length === 0) return;
@@ -279,7 +296,9 @@ export function ScanFlow({ appendToId, mode = "document" }: Props) {
                 ? idSide === "front"
                   ? "Save front → scan back"
                   : "Save back"
-                : "Add page"}
+                : retakePageId
+                  ? "Replace page"
+                  : "Add page"}
             </button>
           </div>
         </div>
