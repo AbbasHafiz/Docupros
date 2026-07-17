@@ -1,0 +1,36 @@
+{
+  "name": "docupros",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "npx --yes serve@14 out -l 3000",
+    "start:next": "next start",
+    "lint": "eslint",
+    "test:smoke": "node scripts/smoke-test.mjs",
+    "test:ops": "node scripts/ops-test.mjs"
+  },
+  "dependencies": {
+    "docx": "^9.7.1",
+    "idb": "^8.0.3",
+    "jspdf": "^4.2.1",
+    "jszip": "^3.10.1",
+    "next": "16.2.10",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.1.200",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
