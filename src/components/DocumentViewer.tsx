@@ -369,49 +369,145 @@ export function DocumentViewer({ id }: Props) {
         </div>
       )}
 
-      <div className="doc-stage">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={activePage?.imageDataUrl}
-          alt={`Page ${active + 1}`}
-          className="doc-page-image"
-        />
-      </div>
-
-      {(busy || renderStatus) && (
-        <p className="busy-bar" aria-live="polite">
-          {busy ? renderStatus || "Working…" : renderStatus}
-        </p>
-      )}
-
-      {doc.sourcePdfBase64 && (
-        <p className="hint" style={{ textAlign: "center", margin: "0.5rem 0 0" }}>
-          Imported from PDF — use <strong>Reload PDF pages</strong> if the
-          preview looks blank.
-        </p>
-      )}
-
-      {doc.pages.length > 1 && (
-        <div className="page-strip compact">
-          {doc.pages.map((p, i) => (
-            <button
-              key={p.id}
-              type="button"
-              className={`page-thumb-btn ${i === active ? "is-active" : ""}`}
-              onClick={() => {
-                setActive(i);
-                setOcrDraft(p.ocrText || doc.ocrText || "");
-              }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={p.imageDataUrl}
-                alt={p.side ?? `Page ${i + 1}`}
-              />
-            </button>
-          ))}
+      <div className="doc-scroll">
+        <div className="doc-stage">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={activePage?.imageDataUrl}
+            alt={`Page ${active + 1}`}
+            className="doc-page-image"
+          />
         </div>
-      )}
+
+        {(busy || renderStatus) && (
+          <p className="busy-bar" aria-live="polite">
+            {busy ? renderStatus || "Working…" : renderStatus}
+          </p>
+        )}
+
+        {doc.sourcePdfBase64 && (
+          <p className="hint" style={{ textAlign: "center", margin: "0.5rem 0 0" }}>
+            Imported from PDF — use <strong>Reload PDF pages</strong> if the
+            preview looks blank.
+          </p>
+        )}
+
+        {doc.pages.length > 1 && (
+          <div className="page-strip compact">
+            {doc.pages.map((p, i) => (
+              <button
+                key={p.id}
+                type="button"
+                className={`page-thumb-btn ${i === active ? "is-active" : ""}`}
+                onClick={() => {
+                  setActive(i);
+                  setOcrDraft(p.ocrText || doc.ocrText || "");
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={p.imageDataUrl}
+                  alt={p.side ?? `Page ${i + 1}`}
+                />
+              </button>
+            ))}
+          </div>
+        )}
+
+        {manage && (
+          <section className="manage-panel">
+            <h2>Manage pages</h2>
+            <ul className="manage-list">
+              {doc.pages.map((p, i) => (
+                <li key={p.id}>
+                  <span>
+                    {p.side
+                      ? p.side === "front"
+                        ? "Front"
+                        : "Back"
+                      : `Page ${i + 1}`}
+                  </span>
+                  <div className="row-actions">
+                    <button
+                      type="button"
+                      className="text-btn"
+                      disabled={i === 0}
+                      onClick={() => void movePage(i, -1)}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="text-btn"
+                      disabled={i === doc.pages.length - 1}
+                      onClick={() => void movePage(i, 1)}
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      className="text-btn"
+                      onClick={() => void deletePage(i)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {(showOcr || doc.ocrText) && (
+          <section className="ocr-panel">
+            <div className="ocr-head">
+              <h2>Document text</h2>
+              <div className="row-actions">
+                <button
+                  type="button"
+                  className="text-btn"
+                  onClick={() => void copyText()}
+                >
+                  Copy
+                </button>
+                <button
+                  type="button"
+                  className="text-btn"
+                  onClick={() => setShowOcr((v) => !v)}
+                >
+                  {showOcr ? "Hide" : "Show"}
+                </button>
+              </div>
+            </div>
+            {showOcr && (
+              <>
+                <textarea
+                  className="ocr-text"
+                  value={ocrDraft}
+                  onChange={(e) => setOcrDraft(e.target.value)}
+                  rows={10}
+                  placeholder="Extracted text appears here — edit freely, then save."
+                />
+                <div className="row-actions" style={{ marginTop: "0.65rem" }}>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => void saveOcrText()}
+                  >
+                    Save text changes
+                  </button>
+                  <Link
+                    href={documentHref(doc.id, "edit", activePage?.id ?? "")}
+                    className="btn-secondary"
+                  >
+                    Change text on image
+                  </Link>
+                </div>
+              </>
+            )}
+          </section>
+        )}
+      </div>
 
       <div className="doc-toolbar">
         <Link
@@ -516,100 +612,6 @@ export function DocumentViewer({ id }: Props) {
           Delete
         </button>
       </div>
-
-      {manage && (
-        <section className="manage-panel">
-          <h2>Manage pages</h2>
-          <ul className="manage-list">
-            {doc.pages.map((p, i) => (
-              <li key={p.id}>
-                <span>
-                  {p.side
-                    ? p.side === "front"
-                      ? "Front"
-                      : "Back"
-                    : `Page ${i + 1}`}
-                </span>
-                <div className="row-actions">
-                  <button
-                    type="button"
-                    className="text-btn"
-                    disabled={i === 0}
-                    onClick={() => void movePage(i, -1)}
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    className="text-btn"
-                    disabled={i === doc.pages.length - 1}
-                    onClick={() => void movePage(i, 1)}
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    className="text-btn"
-                    onClick={() => void deletePage(i)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {(showOcr || doc.ocrText) && (
-        <section className="ocr-panel">
-          <div className="ocr-head">
-            <h2>Document text</h2>
-            <div className="row-actions">
-              <button
-                type="button"
-                className="text-btn"
-                onClick={() => void copyText()}
-              >
-                Copy
-              </button>
-              <button
-                type="button"
-                className="text-btn"
-                onClick={() => setShowOcr((v) => !v)}
-              >
-                {showOcr ? "Hide" : "Show"}
-              </button>
-            </div>
-          </div>
-          {showOcr && (
-            <>
-              <textarea
-                className="ocr-text"
-                value={ocrDraft}
-                onChange={(e) => setOcrDraft(e.target.value)}
-                rows={10}
-                placeholder="Extracted text appears here — edit freely, then save."
-              />
-              <div className="row-actions" style={{ marginTop: "0.65rem" }}>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => void saveOcrText()}
-                >
-                  Save text changes
-                </button>
-                <Link
-                  href={documentHref(doc.id, "edit", activePage?.id ?? "")}
-                  className="btn-secondary"
-                >
-                  Change text on image
-                </Link>
-              </div>
-            </>
-          )}
-        </section>
-      )}
 
       <ShareSheet
         doc={doc}
