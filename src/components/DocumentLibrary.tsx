@@ -65,7 +65,7 @@ export function DocumentLibrary() {
                 <h2>{doc.title}</h2>
                 <p>
                   {doc.kind === "id_card"
-                    ? "ID card · "
+                    ? "CNIC · "
                     : doc.kind === "pdf_form"
                       ? "PDF form · "
                       : ""}

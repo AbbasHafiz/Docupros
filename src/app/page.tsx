@@ -18,8 +18,8 @@ export default function HomePage() {
           <span className="mode-desc">Multi-page scan, enhance, OCR, PDF</span>
         </Link>
         <Link href="/scan?mode=id_card" className="mode-card accent">
-          <span className="mode-title">ID Card</span>
-          <span className="mode-desc">Front + back → A4 ID print</span>
+          <span className="mode-title">CNIC</span>
+          <span className="mode-desc">Pakistani ID · 85.6×54 mm · front + back</span>
         </Link>
       </div>
       <div className="mode-row">

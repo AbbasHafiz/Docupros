@@ -609,18 +609,36 @@ export function PageEditor({ documentId, pageId }: Props) {
     if (!doc) return;
     setBusy(true);
     try {
-      const blob = await exportDocumentPdf(
-        doc.title,
-        doc.pages.map((p) => p.imageDataUrl),
-        { a4: true, watermark: doc.watermark },
-      );
-      const file = new File(
-        [blob],
-        `${doc.title.replace(/\s+/g, "-").toLowerCase()}.pdf`,
-        { type: "application/pdf" },
-      );
+      let blob: Blob;
+      let filename: string;
+      if (doc.kind === "id_card") {
+        const front =
+          doc.pages.find((p) => p.side === "front") ?? doc.pages[0];
+        const back = doc.pages.find((p) => p.side === "back");
+        if (!front) throw new Error("No CNIC front page");
+        const { exportCnicSizedPdf, cnicFilename } = await import("@/lib/cnic");
+        blob = await exportCnicSizedPdf({
+          front: front.imageDataUrl,
+          back: back?.imageDataUrl,
+          title: doc.title,
+          watermark: doc.watermark,
+        });
+        filename = cnicFilename(doc.title);
+      } else {
+        blob = await exportDocumentPdf(
+          doc.title,
+          doc.pages.map((p) => p.imageDataUrl),
+          { a4: true, watermark: doc.watermark },
+        );
+        filename = `${doc.title.replace(/\s+/g, "-").toLowerCase()}.pdf`;
+      }
+      const file = new File([blob], filename, { type: "application/pdf" });
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ title: doc.title, files: [file] });
+        await navigator.share({
+          title: doc.title,
+          text: doc.kind === "id_card" ? "Pakistan CNIC" : undefined,
+          files: [file],
+        });
       } else {
         downloadBlob(blob, file.name);
         setStatus("PDF downloaded to share");
