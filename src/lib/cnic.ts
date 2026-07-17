@@ -14,6 +14,8 @@ export type CnicExportOptions = {
   title?: string;
   watermark?: string;
   copies?: 1 | 2;
+  includeBack?: boolean;
+  fitMode?: "fit" | "cover";
 };
 
 /** Fit/cover an image into exact CNIC aspect ratio (for scan output). */
@@ -132,6 +134,8 @@ export async function exportCnicA4Pdf(
     back: options.back,
     title: options.title ?? "Pakistan CNIC",
     copies: options.copies ?? 1,
+    includeBack: options.includeBack,
+    fitMode: options.fitMode ?? "fit",
     watermark: options.watermark,
     frontLabel: "CNIC Front",
     backLabel: "CNIC Back",
@@ -158,6 +162,8 @@ export async function printCnic(options: CnicExportOptions) {
     back: options.back,
     title: options.title ?? "Pakistan CNIC",
     copies: options.copies ?? 1,
+    includeBack: options.includeBack,
+    fitMode: options.fitMode ?? "fit",
     watermark: options.watermark,
     frontLabel: "CNIC Front",
     backLabel: "CNIC Back",

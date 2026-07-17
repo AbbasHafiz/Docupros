@@ -9,12 +9,6 @@ import { deleteDocument, getDocument, saveDocument } from "@/lib/storage";
 import { downloadBlob, exportDocumentPdf, printDocumentPages } from "@/lib/pdf";
 import { extractTextFromImages } from "@/lib/ocr";
 import { rebuildDocumentText } from "@/lib/editOperations";
-import {
-  cnicFilename,
-  exportCnicA4Pdf,
-  exportCnicSizedPdf,
-  printCnic,
-} from "@/lib/cnic";
 import { hashPassword } from "@/lib/toolsOps";
 import { documentHref } from "@/lib/routes";
 import { createId } from "@/lib/id";
@@ -24,6 +18,7 @@ import {
 } from "@/lib/pdfConvert";
 import { ShareSheet } from "./ShareSheet";
 import { ColleagueSheet } from "./ColleagueSheet";
+import { CnicPrintSheet } from "./CnicPrintSheet";
 
 type Props = { id: string };
 
@@ -49,6 +44,7 @@ export function DocumentViewer({ id }: Props) {
   const [manage, setManage] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [colleagueOpen, setColleagueOpen] = useState(false);
+  const [cnicPrintOpen, setCnicPrintOpen] = useState(false);
   const [renderStatus, setRenderStatus] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const rerenderedRef = useRef<string | null>(null);
@@ -196,37 +192,25 @@ export function DocumentViewer({ id }: Props) {
   };
 
   const exportPdf = async (a4 = false) => {
+    if (isId) {
+      setCnicPrintOpen(true);
+      return;
+    }
     setBusy(true);
     try {
-      if (isId && front) {
-        const opts = {
-          front: front.imageDataUrl,
-          back: back?.imageDataUrl,
-          title: doc.title,
-          watermark: doc.watermark,
-          copies: 1 as const,
-        };
-        // Card-size CNIC PDF for share/digital; A4 sheet when printing layout requested
-        const blob = a4
-          ? await exportCnicA4Pdf(opts)
-          : await exportCnicSizedPdf(opts);
-        if (blob.size < 500) throw new Error("PDF export produced an empty file");
-        downloadBlob(blob, cnicFilename(doc.title, a4 ? "print" : "card"));
-      } else {
-        const pages = doc.pages
-          .map((p) => p.imageDataUrl)
-          .filter((src) => Boolean(src));
-        if (!pages.length) throw new Error("No page images to export");
-        const blob = await exportDocumentPdf(doc.title, pages, {
-          watermark: doc.watermark,
-          a4,
-        });
-        if (blob.size < 500) throw new Error("PDF export produced an empty file");
-        downloadBlob(
-          blob,
-          `${doc.title.replace(/\s+/g, "-").toLowerCase()}.pdf`,
-        );
-      }
+      const pages = doc.pages
+        .map((p) => p.imageDataUrl)
+        .filter((src) => Boolean(src));
+      if (!pages.length) throw new Error("No page images to export");
+      const blob = await exportDocumentPdf(doc.title, pages, {
+        watermark: doc.watermark,
+        a4,
+      });
+      if (blob.size < 500) throw new Error("PDF export produced an empty file");
+      downloadBlob(
+        blob,
+        `${doc.title.replace(/\s+/g, "-").toLowerCase()}.pdf`,
+      );
     } catch (e) {
       alert(e instanceof Error ? e.message : "PDF export failed");
     } finally {
@@ -235,40 +219,16 @@ export function DocumentViewer({ id }: Props) {
   };
 
   const doPrint = async () => {
-    setBusy(true);
-    try {
-      if (isId && front) {
-        await printCnic({
-          front: front.imageDataUrl,
-          back: back?.imageDataUrl,
-          title: doc.title,
-          copies: 1,
-          watermark: doc.watermark,
-        });
-      } else {
-        await printDocumentPages(
-          doc.pages.map((p) => p.imageDataUrl),
-          doc.title,
-        );
-      }
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Print failed");
-    } finally {
-      setBusy(false);
+    if (isId) {
+      setCnicPrintOpen(true);
+      return;
     }
-  };
-
-  const printIdTwice = async () => {
-    if (!front) return;
     setBusy(true);
     try {
-      await printCnic({
-        front: front.imageDataUrl,
-        back: back?.imageDataUrl,
-        title: doc.title,
-        copies: 2,
-        watermark: doc.watermark,
-      });
+      await printDocumentPages(
+        doc.pages.map((p) => p.imageDataUrl),
+        doc.title,
+      );
     } catch (e) {
       alert(e instanceof Error ? e.message : "Print failed");
     } finally {
@@ -534,26 +494,18 @@ export function DocumentViewer({ id }: Props) {
           onClick={() => void doPrint()}
           disabled={busy}
         >
-          {isId ? "Print CNIC" : "Print"}
+          {isId ? "Print / Export" : "Print"}
         </button>
-        {isId && (
+        {!isId && (
           <button
             type="button"
             className="btn-secondary"
-            onClick={() => void printIdTwice()}
+            onClick={() => void exportPdf(true)}
             disabled={busy}
           >
-            Print ×2
+            Export PDF
           </button>
         )}
-        <button
-          type="button"
-          className="btn-secondary"
-          onClick={() => void exportPdf(isId ? false : true)}
-          disabled={busy}
-        >
-          {isId ? "Export CNIC" : "Export PDF"}
-        </button>
         <button
           type="button"
           className="btn-primary"
@@ -570,16 +522,6 @@ export function DocumentViewer({ id }: Props) {
         >
           Colleague
         </button>
-        {isId && (
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={() => void exportPdf(true)}
-            disabled={busy}
-          >
-            Export A4 print
-          </button>
-        )}
         {doc.sourcePdfBase64 && (
           <button
             type="button"
@@ -651,6 +593,20 @@ export function DocumentViewer({ id }: Props) {
           }
         }}
       />
+
+      {isId && (
+        <CnicPrintSheet
+          doc={doc}
+          open={cnicPrintOpen}
+          onClose={() => setCnicPrintOpen(false)}
+          onStatus={(msg) => {
+            setRenderStatus(msg);
+            if (msg) {
+              window.setTimeout(() => setRenderStatus(null), 2800);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

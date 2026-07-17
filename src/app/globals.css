@@ -619,6 +619,27 @@ body.app-shell:has(.doc-view) {
   line-height: 1.2;
 }
 
+.cnic-print-sheet {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.cnic-option-group {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.cnic-option-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.cnic-action-stack {
+  display: grid;
+  gap: 0.55rem;
+}
+
 .colleague-sheet {
   display: grid;
   gap: 0.85rem;
