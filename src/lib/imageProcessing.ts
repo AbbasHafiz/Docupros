@@ -213,6 +213,16 @@ export async function applyFilter(
       data[i] = clamp(r * 0.85 + 48);
       data[i + 1] = clamp(g * 0.85 + 48);
       data[i + 2] = clamp(b * 0.85 + 48);
+    } else if (filter === "restore") {
+      let nr = clamp((r - 128) * 1.28 + 128 + 10);
+      let ng = clamp((g - 128) * 1.24 + 128 + 8);
+      let nb = clamp((b - 128) * 1.2 + 128 + 5);
+      nr = clamp(nr + (255 - nr) * 0.1);
+      ng = clamp(ng + (255 - ng) * 0.1);
+      nb = clamp(nb + (255 - nb) * 0.08);
+      data[i] = nr;
+      data[i + 1] = ng;
+      data[i + 2] = nb;
     }
   }
 

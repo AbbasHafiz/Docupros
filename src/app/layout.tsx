@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Figtree, Syne } from "next/font/google";
+import { BottomNav } from "@/components/BottomNav";
 import "./globals.css";
 
 const syne = Syne({
@@ -40,7 +41,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${syne.variable} ${figtree.variable} h-full`}>
-      <body className="app-shell antialiased">{children}</body>
+      <body className="app-shell antialiased">
+        {children}
+        <BottomNav />
+      </body>
     </html>
   );
 }

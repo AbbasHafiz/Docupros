@@ -10,6 +10,7 @@ import { downloadBlob, exportDocumentPdf, printDocumentPages } from "@/lib/pdf";
 import { extractTextFromImages } from "@/lib/ocr";
 import { rebuildDocumentText } from "@/lib/editOperations";
 import { exportIdCardPdf, printIdCard } from "@/lib/idPrint";
+import { hashPassword } from "@/lib/toolsOps";
 
 type Props = { id: string };
 
@@ -23,6 +24,9 @@ function withUpdate(
 export function DocumentViewer({ id }: Props) {
   const router = useRouter();
   const [doc, setDoc] = useState<DocumentRecord | null>(null);
+  const [unlocked, setUnlocked] = useState(false);
+  const [lockInput, setLockInput] = useState("");
+  const [lockError, setLockError] = useState<string | null>(null);
   const [active, setActive] = useState(0);
   const [ocrRunning, setOcrRunning] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
@@ -53,6 +57,42 @@ export function DocumentViewer({ id }: Props) {
         <p className="muted">Document not found.</p>
         <Link href="/" className="btn-primary">
           Back to library
+        </Link>
+      </div>
+    );
+  }
+
+  if (doc.locked && doc.lockHash && !unlocked) {
+    return (
+      <div className="center-pad">
+        <p className="empty-kicker">Locked</p>
+        <p className="muted">{doc.title}</p>
+        <label className="field" style={{ maxWidth: 280, width: "100%" }}>
+          <span>Password</span>
+          <input
+            type="password"
+            value={lockInput}
+            onChange={(e) => setLockInput(e.target.value)}
+          />
+        </label>
+        {lockError && <p className="hint">{lockError}</p>}
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={() =>
+            void (async () => {
+              const h = await hashPassword(lockInput);
+              if (h === doc.lockHash) {
+                setUnlocked(true);
+                setLockError(null);
+              } else setLockError("Wrong password");
+            })()
+          }
+        >
+          Unlock
+        </button>
+        <Link href="/" className="text-btn">
+          Back
         </Link>
       </div>
     );

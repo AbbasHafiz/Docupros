@@ -5,12 +5,22 @@ import { Suspense } from "react";
 import { ScanFlow } from "@/components/ScanFlow";
 import type { ScanMode } from "@/lib/types";
 
+const MODES: ScanMode[] = [
+  "document",
+  "id_card",
+  "book",
+  "slides",
+  "whiteboard",
+  "timestamp",
+];
+
 function ScanPageInner() {
   const params = useSearchParams();
   const appendToId = params.get("append") ?? undefined;
   const retakePageId = params.get("retake") ?? undefined;
-  const modeParam = params.get("mode");
-  const mode: ScanMode = modeParam === "id_card" ? "id_card" : "document";
+  const modeParam = params.get("mode") as ScanMode | null;
+  const mode: ScanMode =
+    modeParam && MODES.includes(modeParam) ? modeParam : "document";
   return (
     <ScanFlow
       appendToId={appendToId}

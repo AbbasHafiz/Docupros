@@ -1,16 +1,19 @@
 # Docupros
 
-CamScanner-style document & ID scanner with PDF form fill.
+CamScanner-style scanner with a full **Tools** hub.
 
-## Features
+## App tabs
+Home · Files · **Tools** · Me
 
-- Scan documents & ID cards (print)
-- Editor: Crop, Filter, Edit Text, Smart Erase, Retake, Sign, Add Text
-- **PDF Form edit & fill**
-  - Place fields on scans (text, notes, checkbox, date, signature)
-  - Fill mode + Edit form mode
-  - Export **filled** or **fillable** PDF
-  - Import existing AcroForm PDFs and fill field values
+## Tools (from CamScanner Tools screen)
+
+| Section | Ready | Soon |
+|---------|-------|------|
+| **Scan** | ID Cards, Extract Text, ID Photo, Book, Slides, Whiteboard, Timestamp | Formula, Photo Translate |
+| **Import** | Import Images, Import Files (PDF) | — |
+| **Convert** | To Word, To Excel (CSV), PDF to Images, PDF to Long Image | To PPT |
+| **Edit** | Sign, Watermark, Smart Erase, Restore, Merge, Extract Pages, Reorder, Lock, Form Fill | — |
+| **Utilities** | Print, ID Print | Scan Code, AI |
 
 ## Run
 
@@ -19,6 +22,4 @@ npm install
 npm run dev
 ```
 
-### Form fill
-1. Scan a doc → open it → **Form fill** → **Edit form** → place fields → **Fill** → Export  
-2. Or Home → **PDF Form** → upload a fillable PDF → edit values → Export filled PDF
+Open **Tools** in the bottom nav.

@@ -464,6 +464,174 @@ a {
   cursor: crosshair;
 }
 
+/* Bottom nav + Tools hub */
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid #e5e7eb;
+  padding: 0.35rem 0.25rem calc(0.35rem + env(safe-area-inset-bottom));
+}
+
+.bottom-nav-item {
+  display: grid;
+  gap: 0.15rem;
+  justify-items: center;
+  padding: 0.4rem 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: #6b7280;
+}
+
+.bottom-nav-item.is-active {
+  color: #0f766e;
+}
+
+.app-shell {
+  padding-bottom: 4.5rem;
+}
+
+.scan-flow,
+.cs-editor,
+.form-editor,
+.doc-view {
+  padding-bottom: 0;
+}
+
+.tools-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.1rem 1.1rem 6rem;
+  width: 100%;
+}
+
+.tools-head h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  letter-spacing: -0.03em;
+}
+
+.tools-head p {
+  margin: 0.35rem 0 1.25rem;
+  color: var(--muted);
+}
+
+.tools-section {
+  margin-bottom: 1.35rem;
+}
+
+.tools-section h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.85rem 0.5rem;
+}
+
+@media (min-width: 720px) {
+  .tools-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+.tool-tile {
+  position: relative;
+  display: grid;
+  gap: 0.4rem;
+  justify-items: center;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--ink-soft);
+}
+
+.tool-tile.is-soon {
+  opacity: 0.72;
+}
+
+.tool-icon {
+  width: 3.1rem;
+  height: 3.1rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.tool-label {
+  line-height: 1.2;
+  max-width: 5.2rem;
+}
+
+.tool-badge {
+  position: absolute;
+  top: -0.15rem;
+  right: 0.15rem;
+  font-size: 0.6rem;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 0.1rem 0.3rem;
+  border-radius: 999px;
+}
+
+.doc-picker .picker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+}
+
+.picker-main {
+  display: grid;
+  grid-template-columns: 3.2rem 1fr;
+  gap: 0.75rem;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+}
+
+.picker-main img {
+  width: 3.2rem;
+  height: 4rem;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.picker-main strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-main em {
+  font-style: normal;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.files-page {
+  padding-bottom: 6rem;
+}
+
 /* PDF form fill */
 .form-editor {
   min-height: 100dvh;

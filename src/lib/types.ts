@@ -7,7 +7,8 @@ export type ScanFilter =
   | "vivid"
   | "whiteboard"
   | "deepen"
-  | "lighten";
+  | "lighten"
+  | "restore";
 
 export const SCAN_FILTERS: { id: ScanFilter; label: string }[] = [
   { id: "magic", label: "Magic" },
@@ -19,6 +20,7 @@ export const SCAN_FILTERS: { id: ScanFilter; label: string }[] = [
   { id: "deepen", label: "Deepen" },
   { id: "lighten", label: "Lighten" },
   { id: "soft", label: "Soft" },
+  { id: "restore", label: "Restore" },
 ];
 
 export type Point = { x: number; y: number };
@@ -64,7 +66,6 @@ export type ScanPage = {
 
 export type FormFieldType = "text" | "multiline" | "checkbox" | "date" | "signature";
 
-/** Normalized 0–1 coordinates relative to page image size. */
 export type FormField = {
   id: string;
   pageId: string;
@@ -72,7 +73,6 @@ export type FormField = {
   name: string;
   label: string;
   value: string;
-  /** Fraction of page width/height (0–1) */
   x: number;
   y: number;
   w: number;
@@ -91,19 +91,24 @@ export type DocumentRecord = {
   thumbnail?: string;
   kind?: DocumentKind;
   watermark?: string;
-  /** Fillable form fields overlaid on pages */
   formFields?: FormField[];
-  /** Original imported PDF bytes as base64 (optional, for AcroForm round-trip) */
   sourcePdfBase64?: string;
+  /** App-level lock password (SHA-256 hex). */
+  lockHash?: string;
+  locked?: boolean;
 };
 
 export type ScanStep = "capture" | "crop" | "enhance" | "review";
-export type ScanMode = "document" | "id_card";
+export type ScanMode =
+  | "document"
+  | "id_card"
+  | "book"
+  | "slides"
+  | "whiteboard"
+  | "timestamp";
 
-/** Bottom category tabs matching CamScanner-style editor. */
 export type EditorTab = "images" | "markup" | "page";
 
-/** Tools under Images tab. */
 export type ImageTool =
   | "crop"
   | "filter"
@@ -119,4 +124,13 @@ export type EnhanceAdjustments = {
   brightness: number;
   contrast: number;
   sharpness: number;
+};
+
+export type ToolItem = {
+  id: string;
+  label: string;
+  href: string;
+  color: string;
+  icon: string;
+  status: "ready" | "partial" | "soon";
 };

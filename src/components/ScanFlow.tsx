@@ -16,6 +16,7 @@ import {
   warpPerspective,
 } from "@/lib/imageProcessing";
 import { saveDocument, getDocument } from "@/lib/storage";
+import { stampTimestamp } from "@/lib/toolsOps";
 import {
   SCAN_FILTERS,
   type DocumentRecord,
@@ -38,6 +39,14 @@ export function ScanFlow({
 }: Props) {
   const router = useRouter();
   const isId = mode === "id_card";
+  const defaultFilter: ScanFilter =
+    mode === "whiteboard"
+      ? "whiteboard"
+      : mode === "slides"
+        ? "vivid"
+        : mode === "book"
+          ? "magic"
+          : "magic";
   const [step, setStep] = useState<"capture" | "crop" | "enhance" | "review">(
     "capture",
   );
@@ -45,7 +54,7 @@ export function ScanFlow({
   const [rawImage, setRawImage] = useState<string | null>(null);
   const [quad, setQuad] = useState<Quad | null>(null);
   const [cropped, setCropped] = useState<string | null>(null);
-  const [filter, setFilter] = useState<ScanFilter>("magic");
+  const [filter, setFilter] = useState<ScanFilter>(defaultFilter);
   const [previews, setPreviews] = useState<Partial<Record<ScanFilter, string>>>(
     {},
   );
@@ -93,7 +102,7 @@ export function ScanFlow({
         }),
       );
       setPreviews(next);
-      setFilter("magic");
+      setFilter(defaultFilter);
       setStep("enhance");
     } finally {
       setBusy(false);
@@ -104,7 +113,10 @@ export function ScanFlow({
     if (!cropped) return;
     setBusy(true);
     try {
-      const finalImage = await applyFilter(cropped, filter);
+      let finalImage = await applyFilter(cropped, filter);
+      if (mode === "timestamp") {
+        finalImage = await stampTimestamp(finalImage);
+      }
       const page: ScanPage = {
         id: retakePageId ?? createId(),
         imageDataUrl: finalImage,
@@ -150,7 +162,7 @@ export function ScanFlow({
     } finally {
       setBusy(false);
     }
-  }, [cropped, filter, idSide, isId, retakePageId]);
+  }, [cropped, filter, idSide, isId, mode, retakePageId]);
 
   const saveAll = async () => {
     if (pages.length === 0) return;
@@ -245,6 +257,15 @@ export function ScanFlow({
         <div className="id-banner">
           Scan the <strong>{idSide}</strong> of your ID card
           {idSide === "back" && front ? " · Front saved" : ""}
+        </div>
+      )}
+
+      {!isId && mode !== "document" && step === "capture" && (
+        <div className="id-banner">
+          {mode === "book" && "Book mode — capture one page at a time"}
+          {mode === "slides" && "Slides mode — vivid screen capture"}
+          {mode === "whiteboard" && "Whiteboard mode — high-contrast board filter"}
+          {mode === "timestamp" && "Timestamp mode — date/time stamped on save"}
         </div>
       )}
 
