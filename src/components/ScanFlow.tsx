@@ -98,6 +98,7 @@ export function ScanFlow({ appendToId }: Props) {
       const page: ScanPage = {
         id: createId(),
         imageDataUrl: finalImage,
+        originalDataUrl: finalImage,
         filter,
         createdAt: Date.now(),
       };

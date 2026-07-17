@@ -8,6 +8,7 @@ import type { DocumentRecord } from "@/lib/types";
 import { deleteDocument, getDocument, saveDocument } from "@/lib/storage";
 import { downloadBlob, exportDocumentPdf } from "@/lib/pdf";
 import { extractTextFromImages } from "@/lib/ocr";
+import { rebuildDocumentText } from "@/lib/editOperations";
 
 type Props = { id: string };
 
@@ -18,11 +19,23 @@ export function DocumentViewer({ id }: Props) {
   const [ocrRunning, setOcrRunning] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
   const [showOcr, setShowOcr] = useState(false);
+  const [ocrDraft, setOcrDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
-    void getDocument(id).then((d) => setDoc(d ?? null));
+    let cancelled = false;
+    void getDocument(id).then((d) => {
+      if (cancelled) return;
+      setDoc(d ?? null);
+      if (d?.ocrText) {
+        setOcrDraft(d.ocrText);
+        setShowOcr(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   if (!doc) {
@@ -68,10 +81,35 @@ export function DocumentViewer({ id }: Props) {
       const updated = { ...doc, ocrText: text, updatedAt: Date.now() };
       await saveDocument(updated);
       setDoc(updated);
+      setOcrDraft(text);
       setShowOcr(true);
     } finally {
       setOcrRunning(false);
     }
+  };
+
+  const saveOcrText = async () => {
+    const pages = doc.pages.map((p, i) =>
+      i === active ? { ...p, ocrText: ocrDraft } : p,
+    );
+    const updated = {
+      ...doc,
+      pages,
+      ocrText: ocrDraft.includes("— Page")
+        ? ocrDraft
+        : rebuildDocumentText(
+            doc.pages.map((p, i) => (i === active ? ocrDraft : p.ocrText)),
+          ) || ocrDraft,
+      updatedAt: Date.now(),
+    };
+    await saveDocument(updated);
+    setDoc(updated);
+  };
+
+  const copyText = async () => {
+    const text = ocrDraft || doc.ocrText || "";
+    if (!text) return;
+    await navigator.clipboard.writeText(text);
   };
 
   const remove = async () => {
@@ -79,6 +117,8 @@ export function DocumentViewer({ id }: Props) {
     await deleteDocument(doc.id);
     startTransition(() => router.push("/"));
   };
+
+  const activePage = doc.pages[active];
 
   return (
     <div className="doc-view">
@@ -95,7 +135,7 @@ export function DocumentViewer({ id }: Props) {
       <div className="doc-stage">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={doc.pages[active]?.imageDataUrl}
+          src={activePage?.imageDataUrl}
           alt={`Page ${active + 1}`}
           className="doc-page-image"
         />
@@ -108,7 +148,10 @@ export function DocumentViewer({ id }: Props) {
               key={p.id}
               type="button"
               className={`page-thumb-btn ${i === active ? "is-active" : ""}`}
-              onClick={() => setActive(i)}
+              onClick={() => {
+                setActive(i);
+                setOcrDraft(p.ocrText || doc.ocrText || "");
+              }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={p.imageDataUrl} alt={`Page ${i + 1}`} />
@@ -118,6 +161,12 @@ export function DocumentViewer({ id }: Props) {
       )}
 
       <div className="doc-toolbar">
+        <Link
+          href={`/document/${doc.id}/edit?page=${activePage?.id ?? ""}`}
+          className="btn-primary"
+        >
+          Edit page
+        </Link>
         <Link href={`/scan?append=${doc.id}`} className="btn-secondary">
           Add page
         </Link>
@@ -145,22 +194,49 @@ export function DocumentViewer({ id }: Props) {
       {(showOcr || doc.ocrText) && (
         <section className="ocr-panel">
           <div className="ocr-head">
-            <h2>Extracted text</h2>
-            <button
-              type="button"
-              className="text-btn"
-              onClick={() => setShowOcr((v) => !v)}
-            >
-              {showOcr ? "Hide" : "Show"}
-            </button>
+            <h2>Document text</h2>
+            <div className="row-actions">
+              <button
+                type="button"
+                className="text-btn"
+                onClick={() => void copyText()}
+              >
+                Copy
+              </button>
+              <button
+                type="button"
+                className="text-btn"
+                onClick={() => setShowOcr((v) => !v)}
+              >
+                {showOcr ? "Hide" : "Show"}
+              </button>
+            </div>
           </div>
           {showOcr && (
-            <textarea
-              className="ocr-text"
-              readOnly
-              value={doc.ocrText || "No text found."}
-              rows={10}
-            />
+            <>
+              <textarea
+                className="ocr-text"
+                value={ocrDraft}
+                onChange={(e) => setOcrDraft(e.target.value)}
+                rows={10}
+                placeholder="Extracted text appears here — edit freely, then save."
+              />
+              <div className="row-actions" style={{ marginTop: "0.65rem" }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => void saveOcrText()}
+                >
+                  Save text changes
+                </button>
+                <Link
+                  href={`/document/${doc.id}/edit?page=${activePage?.id ?? ""}`}
+                  className="btn-secondary"
+                >
+                  Change text on image
+                </Link>
+              </div>
+            </>
           )}
         </section>
       )}
