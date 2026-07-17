@@ -50,6 +50,24 @@ type Props = {
   pageId?: string;
 };
 
+type PageSnapshot = {
+  imageDataUrl: string;
+  originalDataUrl?: string;
+  filter: ScanFilter;
+  ocrText?: string;
+  ocrWords?: OcrWord[];
+};
+
+const MAX_HISTORY = 30;
+
+const snapshotFromPage = (p: ScanPage): PageSnapshot => ({
+  imageDataUrl: p.imageDataUrl,
+  originalDataUrl: p.originalDataUrl,
+  filter: p.filter,
+  ocrText: p.ocrText,
+  ocrWords: p.ocrWords ? [...p.ocrWords] : undefined,
+});
+
 const IMAGE_TOOLS: { id: ImageTool; label: string; icon: string }[] = [
   { id: "crop", label: "Crop", icon: "▢" },
   { id: "filter", label: "Filter", icon: "◎" },
@@ -108,8 +126,23 @@ export function PageEditor({ documentId, pageId }: Props) {
   const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(
     null,
   );
+  const undoStackRef = useRef<PageSnapshot[]>([]);
+  const redoStackRef = useRef<PageSnapshot[]>([]);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
 
   const page = doc?.pages[pageIndex];
+
+  const syncHistoryFlags = () => {
+    setCanUndo(undoStackRef.current.length > 0);
+    setCanRedo(redoStackRef.current.length > 0);
+  };
+
+  const clearHistory = () => {
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    syncHistoryFlags();
+  };
 
   const needsPrecisionZoom =
     imageTool === "editText" ||
@@ -220,8 +253,18 @@ export function PageEditor({ documentId, pageId }: Props) {
   const persistPage = async (
     nextImage: string,
     patch: Partial<ScanPage> = {},
+    options: { recordHistory?: boolean } = {},
   ) => {
     if (!doc || !page) return;
+    const recordHistory = options.recordHistory !== false;
+    if (recordHistory) {
+      undoStackRef.current = [
+        ...undoStackRef.current.slice(-(MAX_HISTORY - 1)),
+        snapshotFromPage(page),
+      ];
+      redoStackRef.current = [];
+      syncHistoryFlags();
+    }
     const pages = doc.pages.map((p, i) =>
       i === pageIndex
         ? {
@@ -241,8 +284,107 @@ export function PageEditor({ documentId, pageId }: Props) {
     };
     await saveDocument(updated);
     setDoc(updated);
-    await paintCanvas(nextImage, patch.ocrWords ?? words);
+    const nextWords = patch.ocrWords ?? words;
+    if (patch.ocrWords) setWords(patch.ocrWords);
+    await paintCanvas(nextImage, nextWords);
   };
+
+  const restoreSnapshot = async (snap: PageSnapshot) => {
+    if (!doc || !page) return;
+    const pages = doc.pages.map((p, i) =>
+      i === pageIndex
+        ? {
+            ...p,
+            imageDataUrl: snap.imageDataUrl,
+            originalDataUrl: snap.originalDataUrl,
+            filter: snap.filter,
+            ocrText: snap.ocrText,
+            ocrWords: snap.ocrWords,
+          }
+        : p,
+    );
+    const updated: DocumentRecord = {
+      ...doc,
+      pages,
+      thumbnail: pages[0]?.imageDataUrl,
+      updatedAt: Date.now(),
+      ocrText: rebuildDocumentText(pages.map((p) => p.ocrText)),
+    };
+    await saveDocument(updated);
+    setDoc(updated);
+    setWords(snap.ocrWords ?? []);
+    setSelectedWordId(null);
+    await paintCanvas(snap.imageDataUrl, snap.ocrWords ?? []);
+  };
+
+  const undoEdit = async () => {
+    if (!doc || !page || undoStackRef.current.length === 0 || busy) return;
+    const previous = undoStackRef.current[undoStackRef.current.length - 1];
+    undoStackRef.current = undoStackRef.current.slice(0, -1);
+    redoStackRef.current = [
+      ...redoStackRef.current.slice(-(MAX_HISTORY - 1)),
+      snapshotFromPage(page),
+    ];
+    syncHistoryFlags();
+    setBusy(true);
+    try {
+      await restoreSnapshot(previous);
+      setStatus("Undone");
+      window.setTimeout(() => setStatus(null), 1200);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const redoEdit = async () => {
+    if (!doc || !page || redoStackRef.current.length === 0 || busy) return;
+    const next = redoStackRef.current[redoStackRef.current.length - 1];
+    redoStackRef.current = redoStackRef.current.slice(0, -1);
+    undoStackRef.current = [
+      ...undoStackRef.current.slice(-(MAX_HISTORY - 1)),
+      snapshotFromPage(page),
+    ];
+    syncHistoryFlags();
+    setBusy(true);
+    try {
+      await restoreSnapshot(next);
+      setStatus("Redone");
+      window.setTimeout(() => setStatus(null), 1200);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const undoEditRef = useRef(undoEdit);
+  const redoEditRef = useRef(redoEdit);
+  undoEditRef.current = undoEdit;
+  redoEditRef.current = redoEdit;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (
+        tag === "input" ||
+        tag === "textarea" ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        void undoEditRef.current();
+      } else if ((key === "z" && e.shiftKey) || key === "y") {
+        e.preventDefault();
+        void redoEditRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const pointerToImage = (e: React.PointerEvent) => {
     const canvas = canvasRef.current!;
@@ -668,6 +810,7 @@ export function PageEditor({ documentId, pageId }: Props) {
     setDoc(updated);
     setPageIndex(Math.min(pageIndex, pages.length - 1));
     setWords(pages[Math.min(pageIndex, pages.length - 1)]?.ocrWords ?? []);
+    clearHistory();
   };
 
   const goPage = (dir: -1 | 1) => {
@@ -682,6 +825,7 @@ export function PageEditor({ documentId, pageId }: Props) {
     setImageTool(null);
     setCropRaw(null);
     setZoom(1);
+    clearHistory();
   };
 
   if (loading) {
@@ -721,6 +865,28 @@ export function PageEditor({ documentId, pageId }: Props) {
         >
           ✕
         </button>
+        <div className="cs-history-actions" role="toolbar" aria-label="History">
+          <button
+            type="button"
+            className="cs-icon-btn"
+            aria-label="Undo"
+            title="Undo (Ctrl+Z)"
+            disabled={!canUndo || busy}
+            onClick={() => void undoEdit()}
+          >
+            ↶
+          </button>
+          <button
+            type="button"
+            className="cs-icon-btn"
+            aria-label="Redo"
+            title="Redo (Ctrl+Y)"
+            disabled={!canRedo || busy}
+            onClick={() => void redoEdit()}
+          >
+            ↷
+          </button>
+        </div>
         <div className="cs-top-actions">
           <button
             type="button"
