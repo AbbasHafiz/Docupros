@@ -240,76 +240,310 @@ export async function detectDocumentQuad(imageSrc: string): Promise<Quad> {
   const scale = Math.min(1, maxSide / Math.max(w, h));
   canvas.width = Math.max(1, Math.round(w * scale));
   canvas.height = Math.max(1, Math.round(h * scale));
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) return defaultQuad(w, h);
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const cw = canvas.width;
-  const ch = canvas.height;
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const result = detectDocumentQuadFromImageData(imageData, 1 / scale);
+  return result.found ? result.quad : defaultQuad(w, h);
+}
 
-  const lumAt = (x: number, y: number) => {
-    const i = (y * cw + x) * 4;
-    return 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-  };
+export type LiveDetectResult = {
+  quad: Quad;
+  /** 0–1 how confident the detector is that a document/object is framed */
+  confidence: number;
+  found: boolean;
+};
 
-  // Score map: bright regions with edge nearby (paper on darker desk)
-  let minX = cw;
-  let minY = ch;
-  let maxX = 0;
-  let maxY = 0;
-  let found = false;
-  const threshold = 125;
+/**
+ * Fast document/object edge detection for a downscaled frame.
+ * `outScale` multiplies coordinates back to the source pixel space
+ * (e.g. videoWidth / analysisWidth).
+ */
+export function detectDocumentQuadFromImageData(
+  imageData: ImageData,
+  outScale = 1,
+): LiveDetectResult {
+  const cw = imageData.width;
+  const ch = imageData.height;
+  const { data } = imageData;
+  if (cw < 16 || ch < 16) {
+    return { quad: defaultQuad(cw * outScale, ch * outScale), confidence: 0, found: false };
+  }
 
+  const lum = new Float32Array(cw * ch);
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    lum[p] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+  }
+
+  const lumAt = (x: number, y: number) => lum[y * cw + x];
+
+  // Sobel magnitude (skip border)
+  const edge = new Float32Array(cw * ch);
+  let edgeMean = 0;
+  let edgeCount = 0;
   for (let y = 1; y < ch - 1; y++) {
     for (let x = 1; x < cw - 1; x++) {
-      const lum = lumAt(x, y);
-      if (lum < threshold) continue;
-      const gx = Math.abs(lumAt(x + 1, y) - lumAt(x - 1, y));
-      const gy = Math.abs(lumAt(x, y + 1) - lumAt(x, y - 1));
-      // Prefer interior paper, allow edges
-      if (lum > threshold || gx + gy > 40) {
-        found = true;
-        if (x < minX) minX = x;
-        if (y < minY) minY = y;
-        if (x > maxX) maxX = x;
-        if (y > maxY) maxY = y;
+      const gx =
+        -lumAt(x - 1, y - 1) +
+        lumAt(x + 1, y - 1) -
+        2 * lumAt(x - 1, y) +
+        2 * lumAt(x + 1, y) -
+        lumAt(x - 1, y + 1) +
+        lumAt(x + 1, y + 1);
+      const gy =
+        -lumAt(x - 1, y - 1) -
+        2 * lumAt(x, y - 1) -
+        lumAt(x + 1, y - 1) +
+        lumAt(x - 1, y + 1) +
+        2 * lumAt(x, y + 1) +
+        lumAt(x + 1, y + 1);
+      const mag = Math.abs(gx) + Math.abs(gy);
+      edge[y * cw + x] = mag;
+      edgeMean += mag;
+      edgeCount++;
+    }
+  }
+  edgeMean /= Math.max(1, edgeCount);
+  const edgeThresh = Math.max(28, edgeMean * 2.2);
+
+  // Sample columns/rows in the central band and walk inward for first strong edge
+  const samples = 28;
+  const x0 = Math.floor(cw * 0.12);
+  const x1 = Math.floor(cw * 0.88);
+  const y0 = Math.floor(ch * 0.12);
+  const y1 = Math.floor(ch * 0.88);
+
+  const tops: number[] = [];
+  const bottoms: number[] = [];
+  const lefts: number[] = [];
+  const rights: number[] = [];
+
+  for (let i = 0; i < samples; i++) {
+    const x = Math.round(x0 + ((x1 - x0) * i) / (samples - 1));
+    let topHit = -1;
+    let bottomHit = -1;
+    for (let y = 2; y < ch - 2; y++) {
+      if (edge[y * cw + x] >= edgeThresh) {
+        topHit = y;
+        break;
       }
+    }
+    for (let y = ch - 3; y >= 2; y--) {
+      if (edge[y * cw + x] >= edgeThresh) {
+        bottomHit = y;
+        break;
+      }
+    }
+    if (topHit >= 0 && bottomHit > topHit + ch * 0.12) {
+      tops.push(topHit);
+      bottoms.push(bottomHit);
+    }
+
+    const y = Math.round(y0 + ((y1 - y0) * i) / (samples - 1));
+    let leftHit = -1;
+    let rightHit = -1;
+    for (let xScan = 2; xScan < cw - 2; xScan++) {
+      if (edge[y * cw + xScan] >= edgeThresh) {
+        leftHit = xScan;
+        break;
+      }
+    }
+    for (let xScan = cw - 3; xScan >= 2; xScan--) {
+      if (edge[y * cw + xScan] >= edgeThresh) {
+        rightHit = xScan;
+        break;
+      }
+    }
+    if (leftHit >= 0 && rightHit > leftHit + cw * 0.12) {
+      lefts.push(leftHit);
+      rights.push(rightHit);
     }
   }
 
-  if (!found || maxX - minX < cw * 0.2 || maxY - minY < ch * 0.2) {
-    return defaultQuad(w, h);
-  }
+  const median = (arr: number[]) => {
+    if (!arr.length) return NaN;
+    const s = [...arr].sort((a, b) => a - b);
+    return s[Math.floor(s.length / 2)];
+  };
 
-  // Tighten using row/col projections
-  const colScore = new Array(cw).fill(0);
-  const rowScore = new Array(ch).fill(0);
-  for (let y = minY; y <= maxY; y++) {
-    for (let x = minX; x <= maxX; x++) {
-      if (lumAt(x, y) > threshold) {
-        colScore[x]++;
-        rowScore[y]++;
+  const mad = (arr: number[], med: number) => {
+    if (!arr.length) return Infinity;
+    const diffs = arr.map((v) => Math.abs(v - med)).sort((a, b) => a - b);
+    return diffs[Math.floor(diffs.length / 2)] || 0;
+  };
+
+  let minX = median(lefts);
+  let maxX = median(rights);
+  let minY = median(tops);
+  let maxY = median(bottoms);
+
+  const hitScore =
+    (tops.length + bottoms.length + lefts.length + rights.length) /
+    (samples * 4);
+  const stable =
+    mad(lefts, minX) < cw * 0.08 &&
+    mad(rights, maxX) < cw * 0.08 &&
+    mad(tops, minY) < ch * 0.08 &&
+    mad(bottoms, maxY) < ch * 0.08;
+
+  // Fallback: bright paper AABB if edge walk is weak
+  if (
+    !Number.isFinite(minX) ||
+    !Number.isFinite(maxX) ||
+    !Number.isFinite(minY) ||
+    !Number.isFinite(maxY) ||
+    maxX - minX < cw * 0.22 ||
+    maxY - minY < ch * 0.18 ||
+    hitScore < 0.28
+  ) {
+    const threshold = 125;
+    let bMinX = cw;
+    let bMinY = ch;
+    let bMaxX = 0;
+    let bMaxY = 0;
+    let found = false;
+    for (let y = 1; y < ch - 1; y++) {
+      for (let x = 1; x < cw - 1; x++) {
+        const L = lumAt(x, y);
+        if (L < threshold) continue;
+        const gx = Math.abs(lumAt(x + 1, y) - lumAt(x - 1, y));
+        const gy = Math.abs(lumAt(x, y + 1) - lumAt(x, y - 1));
+        if (L > threshold || gx + gy > 40) {
+          found = true;
+          if (x < bMinX) bMinX = x;
+          if (y < bMinY) bMinY = y;
+          if (x > bMaxX) bMaxX = x;
+          if (y > bMaxY) bMaxY = y;
+        }
       }
     }
+    if (!found || bMaxX - bMinX < cw * 0.2 || bMaxY - bMinY < ch * 0.2) {
+      return {
+        quad: defaultQuad(cw * outScale, ch * outScale),
+        confidence: 0,
+        found: false,
+      };
+    }
+
+    const colScore = new Array(cw).fill(0);
+    const rowScore = new Array(ch).fill(0);
+    for (let y = bMinY; y <= bMaxY; y++) {
+      for (let x = bMinX; x <= bMaxX; x++) {
+        if (lumAt(x, y) > threshold) {
+          colScore[x]++;
+          rowScore[y]++;
+        }
+      }
+    }
+    const colCut = (bMaxY - bMinY) * 0.12;
+    const rowCut = (bMaxX - bMinX) * 0.12;
+    while (bMinX < bMaxX && colScore[bMinX] < colCut) bMinX++;
+    while (bMaxX > bMinX && colScore[bMaxX] < colCut) bMaxX--;
+    while (bMinY < bMaxY && rowScore[bMinY] < rowCut) bMinY++;
+    while (bMaxY > bMinY && rowScore[bMaxY] < rowCut) bMaxY--;
+
+    minX = bMinX;
+    maxX = bMaxX;
+    minY = bMinY;
+    maxY = bMaxY;
   }
-  const colCut = (maxY - minY) * 0.12;
-  const rowCut = (maxX - minX) * 0.12;
-  while (minX < maxX && colScore[minX] < colCut) minX++;
-  while (maxX > minX && colScore[maxX] < colCut) maxX--;
-  while (minY < maxY && rowScore[minY] < rowCut) minY++;
-  while (maxY > minY && rowScore[maxY] < rowCut) maxY--;
 
-  const pad = 3;
-  minX = Math.max(0, minX - pad) / scale;
-  minY = Math.max(0, minY - pad) / scale;
-  maxX = Math.min(cw - 1, maxX + pad) / scale;
-  maxY = Math.min(ch - 1, maxY + pad) / scale;
+  const pad = 2;
+  minX = Math.max(0, minX - pad);
+  minY = Math.max(0, minY - pad);
+  maxX = Math.min(cw - 1, maxX + pad);
+  maxY = Math.min(ch - 1, maxY + pad);
 
+  const areaRatio = ((maxX - minX) * (maxY - minY)) / (cw * ch);
+  const sizeOk = areaRatio > 0.08 && areaRatio < 0.92;
+  const confidence = Math.max(
+    0,
+    Math.min(
+      1,
+      (hitScore * 0.55 + (stable ? 0.25 : 0) + (sizeOk ? 0.2 : 0)) *
+        (sizeOk ? 1 : 0.4),
+    ),
+  );
+  const found = confidence >= 0.35 && maxX - minX > cw * 0.2 && maxY - minY > ch * 0.15;
+
+  const s = outScale;
   return {
-    tl: { x: minX, y: minY },
-    tr: { x: maxX, y: minY },
-    br: { x: maxX, y: maxY },
-    bl: { x: minX, y: maxY },
+    found,
+    confidence,
+    quad: {
+      tl: { x: minX * s, y: minY * s },
+      tr: { x: maxX * s, y: minY * s },
+      br: { x: maxX * s, y: maxY * s },
+      bl: { x: minX * s, y: maxY * s },
+    },
+  };
+}
+
+/** Analyze a video frame for live edge overlay. */
+export function detectDocumentQuadFromVideo(
+  video: HTMLVideoElement,
+  maxSide = 280,
+  workCanvas?: HTMLCanvasElement,
+): LiveDetectResult {
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  if (!vw || !vh) {
+    return { quad: defaultQuad(1, 1), confidence: 0, found: false };
+  }
+  const scale = Math.min(1, maxSide / Math.max(vw, vh));
+  const cw = Math.max(1, Math.round(vw * scale));
+  const ch = Math.max(1, Math.round(vh * scale));
+  const canvas = workCanvas ?? document.createElement("canvas");
+  if (canvas.width !== cw || canvas.height !== ch) {
+    canvas.width = cw;
+    canvas.height = ch;
+  }
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) {
+    return { quad: defaultQuad(vw, vh), confidence: 0, found: false };
+  }
+  ctx.drawImage(video, 0, 0, cw, ch);
+  const imageData = ctx.getImageData(0, 0, cw, ch);
+  return detectDocumentQuadFromImageData(imageData, 1 / scale);
+}
+
+/** Map video-pixel quad → overlay element coords with object-fit: cover. */
+export function mapVideoQuadToElement(
+  quad: Quad,
+  video: HTMLVideoElement,
+  element: HTMLElement,
+): Quad {
+  const vw = video.videoWidth || 1;
+  const vh = video.videoHeight || 1;
+  const ew = element.clientWidth || 1;
+  const eh = element.clientHeight || 1;
+  const videoAspect = vw / vh;
+  const elemAspect = ew / eh;
+  let renderW: number;
+  let renderH: number;
+  let offsetX: number;
+  let offsetY: number;
+  if (videoAspect > elemAspect) {
+    renderH = eh;
+    renderW = eh * videoAspect;
+    offsetX = (ew - renderW) / 2;
+    offsetY = 0;
+  } else {
+    renderW = ew;
+    renderH = ew / videoAspect;
+    offsetX = 0;
+    offsetY = (eh - renderH) / 2;
+  }
+  const map = (p: Point): Point => ({
+    x: offsetX + (p.x / vw) * renderW,
+    y: offsetY + (p.y / vh) * renderH,
+  });
+  return {
+    tl: map(quad.tl),
+    tr: map(quad.tr),
+    br: map(quad.br),
+    bl: map(quad.bl),
   };
 }
 
