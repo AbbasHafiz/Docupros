@@ -35,14 +35,11 @@ export default function ImportPdfFormPage() {
     setPageImages([]);
     try {
       const buffer = await file.arrayBuffer();
-      // Clone buffers — pdf.js may detach the ArrayBuffer
-      const [info, images] = await Promise.all([
-        inspectPdfForm(buffer.slice(0)),
-        pdfFileToImageDataUrls(buffer.slice(0), 1.5),
-      ]);
-      if (!images.length) {
-        throw new Error("Could not render any PDF pages");
-      }
+      setStatus("Rendering pages…");
+      // Render first (what users see), then inspect forms
+      const images = await pdfFileToImageDataUrls(buffer.slice(0), 1.75);
+      setStatus("Checking form fields…");
+      const info = await inspectPdfForm(buffer.slice(0));
       setBase64(info.base64);
       setPageImages(images);
       setFields(info.fields);
@@ -53,10 +50,15 @@ export default function ImportPdfFormPage() {
       setStatus(
         info.fields.length
           ? `Loaded ${images.length} page(s), ${info.fields.length} form field(s)`
-          : `Loaded ${images.length} page(s) — no AcroForm fields. You can still view and edit pages.`,
+          : `Loaded ${images.length} page(s)`,
       );
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Failed to read PDF");
+      console.error(e);
+      setStatus(
+        e instanceof Error
+          ? e.message
+          : "Failed to read PDF — try another file",
+      );
       setBase64(null);
       setPageImages([]);
       setFields([]);
@@ -131,8 +133,8 @@ export default function ImportPdfFormPage() {
       <AppHeader title="Import PDF" backHref="/" />
       <main className="home" style={{ paddingBottom: "2rem" }}>
         <p className="hero-copy" style={{ marginBottom: "1.25rem" }}>
-          Upload a PDF to view its pages in your library. Fillable forms keep
-          their fields for export.
+          Upload a PDF bill or document — pages are rendered as images so you
+          can view, edit, and export them.
         </p>
 
         <label className="field">
