@@ -274,6 +274,14 @@ a {
   gap: 0.65rem;
 }
 
+.cs-history-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  flex: 1;
+}
+
 .cs-icon-btn {
   appearance: none;
   border: 0;

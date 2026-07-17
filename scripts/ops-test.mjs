@@ -66,6 +66,16 @@ async function main() {
     pass("open editor");
   } else pass("open editor");
 
+  // Undo / Redo controls
+  const undoBtn = page.getByRole("button", { name: "Undo" });
+  const redoBtn = page.getByRole("button", { name: "Redo" });
+  if ((await undoBtn.count()) > 0 && (await redoBtn.count()) > 0) {
+    const undoDisabled = await undoBtn.isDisabled();
+    const redoDisabled = await redoBtn.isDisabled();
+    if (undoDisabled && redoDisabled) pass("undo/redo present (empty history)");
+    else pass("undo/redo present");
+  } else fail("undo/redo buttons");
+
   // Toolbar tools present
   for (const label of ["Crop", "Filter", "Edit Text", "Smart Erase", "Sign", "Add Text"]) {
     const btn = page.getByRole("button", { name: label });
