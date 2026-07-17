@@ -90,6 +90,7 @@ export function PageEditor({ documentId, pageId }: Props) {
   const [addFontSize, setAddFontSize] = useState(28);
   const [placeMode, setPlaceMode] = useState<"text" | "sign" | null>(null);
   const [scale, setScale] = useState(1);
+  const [zoom, setZoom] = useState(1);
   const [inkColor, setInkColor] = useState("#e11d48");
   const [inkWidth, setInkWidth] = useState(4);
   const [signOpen, setSignOpen] = useState(false);
@@ -102,8 +103,22 @@ export function PageEditor({ documentId, pageId }: Props) {
   const strokePoints = useRef<{ x: number; y: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const naturalSizeRef = useRef({ w: 1, h: 1 });
+  const fitScaleRef = useRef(1);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(
+    null,
+  );
 
   const page = doc?.pages[pageIndex];
+
+  const needsPrecisionZoom =
+    imageTool === "editText" ||
+    imageTool === "smartErase" ||
+    imageTool === "removeHandwriting" ||
+    imageTool === "addText" ||
+    placeMode === "sign" ||
+    placeMode === "text" ||
+    tab === "markup";
 
   useEffect(() => {
     let cancelled = false;
@@ -132,20 +147,23 @@ export function PageEditor({ documentId, pageId }: Props) {
   }, [documentId, pageId]);
 
   const paintCanvas = useCallback(
-    async (src: string, overlayWords?: OcrWord[]) => {
+    async (src: string, overlayWords?: OcrWord[], zoomOverride?: number) => {
       const canvas = canvasRef.current;
       if (!canvas) return;
       const img = await loadImage(src);
       const maxW = Math.min(window.innerWidth - 24, 900);
       const maxH = Math.min(window.innerHeight * 0.46, 520);
-      const s = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+      const fit = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+      fitScaleRef.current = fit;
+      const z = zoomOverride ?? zoom;
+      const s = fit * z;
       naturalSizeRef.current = {
         w: img.naturalWidth,
         h: img.naturalHeight,
       };
       setScale(s);
-      canvas.width = Math.round(img.naturalWidth * s);
-      canvas.height = Math.round(img.naturalHeight * s);
+      canvas.width = Math.max(1, Math.round(img.naturalWidth * s));
+      canvas.height = Math.max(1, Math.round(img.naturalHeight * s));
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -169,7 +187,7 @@ export function PageEditor({ documentId, pageId }: Props) {
         }
       }
     },
-    [imageTool, selectedWordId, words],
+    [imageTool, selectedWordId, words, zoom],
   );
 
   useEffect(() => {
@@ -177,6 +195,28 @@ export function PageEditor({ documentId, pageId }: Props) {
     void paintCanvas(page.imageDataUrl);
   }, [page, paintCanvas, cropRaw]);
 
+  const setZoomClamped = (next: number) => {
+    const z = Math.min(4, Math.max(1, Math.round(next * 100) / 100));
+    setZoom(z);
+  };
+
+  const zoomBy = (delta: number) => setZoomClamped(zoom + delta);
+
+  const zoomToFit = () => setZoomClamped(1);
+
+  const scrollWordIntoView = (word: OcrWord) => {
+    const stage = stageRef.current;
+    const canvas = canvasRef.current;
+    if (!stage || !canvas) return;
+    const s = scale || fitScaleRef.current * zoom;
+    const cx = ((word.bbox.x0 + word.bbox.x1) / 2) * s;
+    const cy = ((word.bbox.y0 + word.bbox.y1) / 2) * s;
+    stage.scrollTo({
+      left: Math.max(0, cx - stage.clientWidth / 2),
+      top: Math.max(0, cy - stage.clientHeight / 2),
+      behavior: "smooth",
+    });
+  };
   const persistPage = async (
     nextImage: string,
     patch: Partial<ScanPage> = {},
@@ -218,6 +258,17 @@ export function PageEditor({ documentId, pageId }: Props) {
     setPlaceMode(null);
     setImageTool(tool);
     setTab("images");
+
+    // Precision tools: bump zoom so fine work is usable on phones
+    if (
+      tool === "editText" ||
+      tool === "smartErase" ||
+      tool === "removeHandwriting" ||
+      tool === "addText" ||
+      tool === "sign"
+    ) {
+      setZoomClamped(Math.max(zoom, 1.75));
+    }
 
     if (tool === "retake" && page) {
       router.push(
@@ -349,6 +400,9 @@ export function PageEditor({ documentId, pageId }: Props) {
       if (hit) {
         setSelectedWordId(hit.id);
         setEditText(hit.text);
+        if (zoom < 2) setZoomClamped(2);
+        // scroll after zoom repaint
+        window.setTimeout(() => scrollWordIntoView(hit), 80);
       }
       return;
     }
@@ -609,6 +663,7 @@ export function PageEditor({ documentId, pageId }: Props) {
     setSelectedWordId(null);
     setImageTool(null);
     setCropRaw(null);
+    setZoom(1);
   };
 
   if (loading) {
@@ -706,7 +761,68 @@ export function PageEditor({ documentId, pageId }: Props) {
         </div>
       ) : (
         <>
-          <div className="cs-stage">
+          <div className="cs-zoom-bar" role="toolbar" aria-label="Zoom">
+            <button
+              type="button"
+              className="cs-zoom-btn"
+              aria-label="Zoom out"
+              disabled={zoom <= 1}
+              onClick={() => zoomBy(-0.25)}
+            >
+              −
+            </button>
+            <button
+              type="button"
+              className="cs-zoom-pct"
+              onClick={zoomToFit}
+              title="Fit to screen"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+            <button
+              type="button"
+              className="cs-zoom-btn"
+              aria-label="Zoom in"
+              disabled={zoom >= 4}
+              onClick={() => zoomBy(0.25)}
+            >
+              +
+            </button>
+            <button
+              type="button"
+              className="cs-zoom-fit"
+              onClick={zoomToFit}
+            >
+              Fit
+            </button>
+            {needsPrecisionZoom && zoom < 1.5 && (
+              <span className="cs-zoom-hint">Pinch or + to zoom</span>
+            )}
+          </div>
+
+          <div
+            className={`cs-stage ${zoom > 1 ? "is-zoomed" : ""}`}
+            ref={stageRef}
+            onTouchStart={(e) => {
+              if (e.touches.length === 2) {
+                const [a, b] = [e.touches[0], e.touches[1]];
+                const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+                pinchRef.current = { startDist: dist, startZoom: zoom };
+              }
+            }}
+            onTouchMove={(e) => {
+              if (e.touches.length === 2 && pinchRef.current) {
+                e.preventDefault();
+                const [a, b] = [e.touches[0], e.touches[1]];
+                const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+                const ratio = dist / Math.max(1, pinchRef.current.startDist);
+                setZoomClamped(pinchRef.current.startZoom * ratio);
+              }
+            }}
+            onTouchEnd={() => {
+              pinchRef.current = null;
+            }}
+          >
             <button
               type="button"
               className="cs-trash"
@@ -724,11 +840,17 @@ export function PageEditor({ documentId, pageId }: Props) {
                 tab === "markup"
                   ? "tool-erase"
                   : ""
+              } ${imageTool === "editText" ? "tool-text" : ""} ${
+                placeMode ? "place-mode" : ""
               }`}
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
               onPointerCancel={onPointerUp}
+              onDoubleClick={() => {
+                if (zoom < 2) setZoomClamped(2.25);
+                else zoomToFit();
+              }}
             />
           </div>
 
