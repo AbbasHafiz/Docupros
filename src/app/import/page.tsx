@@ -11,15 +11,17 @@ import {
   inspectPdfForm,
 } from "@/lib/formPdf";
 import { downloadBlob } from "@/lib/pdf";
-import type { DocumentRecord, FormField } from "@/lib/types";
+import { pdfFileToImageDataUrls } from "@/lib/pdfConvert";
+import type { DocumentRecord, FormField, ScanPage } from "@/lib/types";
 import { documentHref } from "@/lib/routes";
 
 export default function ImportPdfFormPage() {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
-  const [title, setTitle] = useState("PDF Form");
+  const [title, setTitle] = useState("Imported PDF");
   const [base64, setBase64] = useState<string | null>(null);
+  const [pageImages, setPageImages] = useState<string[]>([]);
   const [fields, setFields] = useState<
     { name: string; type: string; value: string }[]
   >([]);
@@ -29,24 +31,34 @@ export default function ImportPdfFormPage() {
   const onFile = async (file: File | undefined) => {
     if (!file) return;
     setBusy(true);
-    setStatus(null);
+    setStatus("Reading PDF…");
+    setPageImages([]);
     try {
       const buffer = await file.arrayBuffer();
-      const info = await inspectPdfForm(buffer);
+      // Clone buffers — pdf.js may detach the ArrayBuffer
+      const [info, images] = await Promise.all([
+        inspectPdfForm(buffer.slice(0)),
+        pdfFileToImageDataUrls(buffer.slice(0), 1.5),
+      ]);
+      if (!images.length) {
+        throw new Error("Could not render any PDF pages");
+      }
       setBase64(info.base64);
+      setPageImages(images);
       setFields(info.fields);
-      setTitle(file.name.replace(/\.pdf$/i, "") || "PDF Form");
+      setTitle(file.name.replace(/\.pdf$/i, "") || "Imported PDF");
       const initial: Record<string, string> = {};
       for (const f of info.fields) initial[f.name] = f.value;
       setValues(initial);
       setStatus(
         info.fields.length
-          ? `Loaded ${info.pageCount} page(s), ${info.fields.length} form field(s)`
-          : `Loaded ${info.pageCount} page(s) — no AcroForm fields found. Save as doc to add fields visually.`,
+          ? `Loaded ${images.length} page(s), ${info.fields.length} form field(s)`
+          : `Loaded ${images.length} page(s) — no AcroForm fields. You can still view and edit pages.`,
       );
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Failed to read PDF");
       setBase64(null);
+      setPageImages([]);
       setFields([]);
     } finally {
       setBusy(false);
@@ -68,20 +80,23 @@ export default function ImportPdfFormPage() {
   };
 
   const saveAsDoc = async () => {
-    if (!base64) return;
+    if (!base64 || !pageImages.length) return;
     setBusy(true);
     try {
-      // Create a lightweight doc linked to source PDF for fill list + later form overlay
       const id = createId();
+      const now = Date.now();
+      const pages: ScanPage[] = pageImages.map((imageDataUrl, i) => ({
+        id: createId(),
+        imageDataUrl,
+        originalDataUrl: imageDataUrl,
+        filter: "original",
+        createdAt: now + i,
+      }));
+
       const formFields: FormField[] = fields.map((f, i) => ({
         id: createId(),
-        pageId: "imported",
-        type:
-          f.type.includes("check")
-            ? "checkbox"
-            : f.type.includes("text")
-              ? "text"
-              : "text",
+        pageId: pages[0]?.id ?? "imported",
+        type: f.type.includes("check") ? "checkbox" : "text",
         name: f.name,
         label: f.name,
         value: values[f.name] ?? f.value ?? "",
@@ -92,47 +107,20 @@ export default function ImportPdfFormPage() {
         checked: (values[f.name] ?? f.value) === "true",
       }));
 
-      const canvas = document.createElement("canvas");
-      canvas.width = 1240;
-      canvas.height = 1754;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#0b1c24";
-        ctx.font = "bold 48px sans-serif";
-        ctx.fillText(title, 64, 100);
-        ctx.fillStyle = "#5b7380";
-        ctx.font = "28px sans-serif";
-        ctx.fillText("Imported PDF form — use Fill PDF Form to edit values,", 64, 160);
-        ctx.fillText("or open Form Fill to add visual fields on scans.", 64, 200);
-        fields.slice(0, 12).forEach((f, i) => {
-          ctx.fillText(`• ${f.name}`, 64, 280 + i * 40);
-        });
-      }
-
-      const thumb = canvas.toDataURL("image/jpeg", 0.9);
-      const now = Date.now();
       const doc: DocumentRecord = {
         id,
         title,
-        kind: "pdf_form",
-        pages: [
-          {
-            id: "imported",
-            imageDataUrl: thumb,
-            filter: "original",
-            createdAt: now,
-          },
-        ],
-        formFields,
+        kind: fields.length ? "pdf_form" : "document",
+        pages,
+        formFields: formFields.length ? formFields : undefined,
         sourcePdfBase64: base64,
         createdAt: now,
         updatedAt: now,
-        thumbnail: thumb,
+        thumbnail: pages[0].imageDataUrl,
       };
       await saveDocument(doc);
-      startTransition(() => router.push(documentHref(id, "pdf-form")));
+      // Open the document viewer so page content is visible
+      startTransition(() => router.push(documentHref(id)));
     } finally {
       setBusy(false);
     }
@@ -140,11 +128,11 @@ export default function ImportPdfFormPage() {
 
   return (
     <div className="app-shell">
-      <AppHeader title="Import PDF form" backHref="/" />
+      <AppHeader title="Import PDF" backHref="/" />
       <main className="home" style={{ paddingBottom: "2rem" }}>
         <p className="hero-copy" style={{ marginBottom: "1.25rem" }}>
-          Upload a fillable PDF, edit field values, and export a filled copy —
-          or save it into your library.
+          Upload a PDF to view its pages in your library. Fillable forms keep
+          their fields for export.
         </p>
 
         <label className="field">
@@ -156,9 +144,25 @@ export default function ImportPdfFormPage() {
           />
         </label>
 
-        {status && <p className="busy-bar" style={{ marginTop: "1rem" }}>{status}</p>}
+        {status && (
+          <p className="busy-bar" style={{ marginTop: "1rem" }}>
+            {busy ? "Working…" : status}
+          </p>
+        )}
 
-        {base64 && (
+        {pageImages.length > 0 && (
+          <div className="page-strip" style={{ marginTop: "1rem" }}>
+            {pageImages.map((src, i) => (
+              <figure key={i} className="page-thumb">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={src} alt={`Page ${i + 1}`} />
+                <figcaption>Page {i + 1}</figcaption>
+              </figure>
+            ))}
+          </div>
+        )}
+
+        {base64 && pageImages.length > 0 && (
           <div className="panel-stack" style={{ marginTop: "1.25rem" }}>
             <label className="field">
               <span>Title</span>
@@ -204,8 +208,8 @@ export default function ImportPdfFormPage() {
               </div>
             ) : (
               <p className="hint">
-                This PDF has no AcroForm fields. Scan pages and use{" "}
-                <strong>Form Fill</strong> to place fields visually.
+                No AcroForm fields in this PDF. Pages still open in the viewer
+                for edit, OCR, and export.
               </p>
             )}
 
@@ -213,18 +217,18 @@ export default function ImportPdfFormPage() {
               <button
                 type="button"
                 className="btn-primary"
-                disabled={busy || fields.length === 0}
-                onClick={() => void exportFilled()}
+                disabled={busy}
+                onClick={() => void saveAsDoc()}
               >
-                Export filled PDF
+                Save &amp; open
               </button>
               <button
                 type="button"
                 className="btn-secondary"
-                disabled={busy}
-                onClick={() => void saveAsDoc()}
+                disabled={busy || fields.length === 0}
+                onClick={() => void exportFilled()}
               >
-                Save to library
+                Export filled PDF
               </button>
               <Link href="/" className="btn-secondary">
                 Cancel

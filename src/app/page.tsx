@@ -24,8 +24,8 @@ export default function HomePage() {
       </div>
       <div className="mode-row">
         <Link href="/import" className="mode-card">
-          <span className="mode-title">PDF Form</span>
-          <span className="mode-desc">Import, fill fields, export filled PDF</span>
+          <span className="mode-title">Import PDF</span>
+          <span className="mode-desc">Open PDF pages, fill forms, export</span>
         </Link>
         <Link href="/scan" className="mode-card">
           <span className="mode-title">Scan → Form</span>

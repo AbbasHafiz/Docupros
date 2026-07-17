@@ -9,7 +9,7 @@ type Props = {
 
 export function CameraCapture({ onCapture, onUpload }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const streamRef = useRef<MediaStream | null>(null);
@@ -74,6 +74,14 @@ export function CameraCapture({ onCapture, onUpload }: Props) {
     reader.readAsDataURL(file);
   };
 
+  const openGallery = () => {
+    const input = galleryRef.current;
+    if (!input) return;
+    // Allow selecting the same file again
+    input.value = "";
+    input.click();
+  };
+
   return (
     <div className="capture-stage">
       <div className="capture-frame">
@@ -94,11 +102,7 @@ export function CameraCapture({ onCapture, onUpload }: Props) {
       </div>
 
       <div className="capture-actions">
-        <button
-          type="button"
-          className="btn-ghost"
-          onClick={() => fileRef.current?.click()}
-        >
+        <button type="button" className="btn-ghost" onClick={openGallery}>
           Gallery
         </button>
         <button
@@ -108,22 +112,21 @@ export function CameraCapture({ onCapture, onUpload }: Props) {
           disabled={!ready}
           aria-label="Capture document"
         />
-        <button
-          type="button"
-          className="btn-ghost"
-          onClick={() => fileRef.current?.click()}
-        >
+        <button type="button" className="btn-ghost" onClick={openGallery}>
           Upload
         </button>
       </div>
 
+      {/* No capture= attribute — that forces the camera on mobile */}
       <input
-        ref={fileRef}
+        ref={galleryRef}
         type="file"
         accept="image/*"
-        capture="environment"
         className="sr-only"
-        onChange={(e) => handleFile(e.target.files?.[0])}
+        onChange={(e) => {
+          handleFile(e.target.files?.[0]);
+          e.target.value = "";
+        }}
       />
     </div>
   );
