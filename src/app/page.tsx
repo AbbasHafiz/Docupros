@@ -22,6 +22,16 @@ export default function HomePage() {
           <span className="mode-desc">Front + back → A4 ID print</span>
         </Link>
       </div>
+      <div className="mode-row">
+        <Link href="/import" className="mode-card">
+          <span className="mode-title">PDF Form</span>
+          <span className="mode-desc">Import, fill fields, export filled PDF</span>
+        </Link>
+        <Link href="/scan" className="mode-card">
+          <span className="mode-title">Scan → Form</span>
+          <span className="mode-desc">Scan then place fillable fields</span>
+        </Link>
+      </div>
 
       <DocumentLibrary />
 

@@ -49,7 +49,7 @@ export type OcrResult = {
   words: OcrWord[];
 };
 
-export type DocumentKind = "document" | "id_card";
+export type DocumentKind = "document" | "id_card" | "pdf_form";
 
 export type ScanPage = {
   id: string;
@@ -62,6 +62,25 @@ export type ScanPage = {
   side?: "front" | "back";
 };
 
+export type FormFieldType = "text" | "multiline" | "checkbox" | "date" | "signature";
+
+/** Normalized 0–1 coordinates relative to page image size. */
+export type FormField = {
+  id: string;
+  pageId: string;
+  type: FormFieldType;
+  name: string;
+  label: string;
+  value: string;
+  /** Fraction of page width/height (0–1) */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  required?: boolean;
+  checked?: boolean;
+};
+
 export type DocumentRecord = {
   id: string;
   title: string;
@@ -72,6 +91,10 @@ export type DocumentRecord = {
   thumbnail?: string;
   kind?: DocumentKind;
   watermark?: string;
+  /** Fillable form fields overlaid on pages */
+  formFields?: FormField[];
+  /** Original imported PDF bytes as base64 (optional, for AcroForm round-trip) */
+  sourcePdfBase64?: string;
 };
 
 export type ScanStep = "capture" | "crop" | "enhance" | "review";

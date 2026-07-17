@@ -288,6 +288,16 @@ export function DocumentViewer({ id }: Props) {
         >
           Edit page
         </Link>
+        <Link
+          href={
+            doc.kind === "pdf_form" && doc.sourcePdfBase64
+              ? `/document/${doc.id}/pdf-form`
+              : `/document/${doc.id}/form`
+          }
+          className="btn-secondary"
+        >
+          Form fill
+        </Link>
         <button
           type="button"
           className="btn-secondary"
