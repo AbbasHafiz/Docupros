@@ -4,7 +4,7 @@ CamScanner-style scanner with a full **Tools** hub.
 
 ## Live demo
 
-**https://morning-morning-9177.zerodeploy.app**
+**https://aged-water-1105.zerodeploy.app**
 
 (Free ZeroDeploy link — expires in ~72 hours unless claimed. Camera needs HTTPS, which this URL provides.)
 
