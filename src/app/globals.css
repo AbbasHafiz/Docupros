@@ -312,6 +312,57 @@ a {
   min-height: 42vh;
 }
 
+.cs-stage.is-zoomed {
+  display: block;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  place-items: unset;
+  touch-action: pan-x pan-y;
+}
+
+.cs-stage.is-zoomed .editor-canvas {
+  margin: 0.5rem auto;
+  display: block;
+}
+
+.cs-zoom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem 0.15rem;
+  background: #eef1f2;
+}
+
+.cs-zoom-btn,
+.cs-zoom-pct,
+.cs-zoom-fit {
+  appearance: none;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #0b1c24;
+  border-radius: 999px;
+  font-weight: 700;
+  min-width: 2.2rem;
+  height: 2.1rem;
+  padding: 0 0.7rem;
+}
+
+.cs-zoom-btn:disabled {
+  opacity: 0.4;
+}
+
+.cs-zoom-pct {
+  min-width: 3.6rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.cs-zoom-hint {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-left: 0.25rem;
+}
+
 .cs-trash {
   position: absolute;
   top: 0.85rem;
@@ -651,6 +702,14 @@ a {
   padding: 0.75rem;
   background: #eef1f2;
   flex: 1;
+  min-height: 40vh;
+}
+
+.form-stage.is-zoomed {
+  display: block;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  place-items: unset;
 }
 
 .form-page {

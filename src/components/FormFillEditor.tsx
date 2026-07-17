@@ -44,6 +44,7 @@ export function FormFillEditor({ documentId }: Props) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
+  const [zoom, setZoom] = useState(1);
   const [signOpen, setSignOpen] = useState(false);
   const [signFieldId, setSignFieldId] = useState<string | null>(null);
   const dragRef = useRef<{
@@ -267,14 +268,52 @@ export function FormFillEditor({ documentId }: Props) {
         <div className="busy-bar">{busy ? "Working…" : status}</div>
       )}
 
-      <div className="form-stage" ref={wrapRef}>
+      <div className="cs-zoom-bar" role="toolbar" aria-label="Zoom">
+        <button
+          type="button"
+          className="cs-zoom-btn"
+          aria-label="Zoom out"
+          disabled={zoom <= 1}
+          onClick={() => setZoom((z) => Math.max(1, Math.round((z - 0.25) * 100) / 100))}
+        >
+          −
+        </button>
+        <button
+          type="button"
+          className="cs-zoom-pct"
+          onClick={() => setZoom(1)}
+        >
+          {Math.round(zoom * 100)}%
+        </button>
+        <button
+          type="button"
+          className="cs-zoom-btn"
+          aria-label="Zoom in"
+          disabled={zoom >= 3}
+          onClick={() => setZoom((z) => Math.min(3, Math.round((z + 0.25) * 100) / 100))}
+        >
+          +
+        </button>
+        <button type="button" className="cs-zoom-fit" onClick={() => setZoom(1)}>
+          Fit
+        </button>
+      </div>
+
+      <div className={`form-stage ${zoom > 1 ? "is-zoomed" : ""}`} ref={wrapRef}>
         <div
           className={`form-page ${placing ? "is-placing" : ""}`}
-          style={{ width: size.w, height: size.h }}
+          style={{
+            width: size.w * zoom,
+            height: size.h * zoom,
+          }}
           onClick={onPageClick}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={page.imageDataUrl} alt={`Page ${pageIndex + 1}`} />
+          <img
+            src={page.imageDataUrl}
+            alt={`Page ${pageIndex + 1}`}
+            style={{ width: size.w * zoom, height: size.h * zoom }}
+          />
           {pageFields.map((field) => (
             <div
               key={field.id}
@@ -293,6 +332,7 @@ export function FormFillEditor({ documentId }: Props) {
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedId(field.id);
+                if (zoom < 1.5) setZoom(1.75);
               }}
             >
               {field.type === "checkbox" ? (
