@@ -522,6 +522,14 @@ export function DocumentViewer({ id }: Props) {
         >
           Colleague
         </button>
+        {doc.pages.length >= 2 && (
+          <Link
+            href={`/tools/collage?id=${encodeURIComponent(doc.id)}`}
+            className="btn-secondary"
+          >
+            Collage
+          </Link>
+        )}
         {doc.sourcePdfBase64 && (
           <button
             type="button"
