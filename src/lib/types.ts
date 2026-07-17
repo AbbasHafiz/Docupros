@@ -1,4 +1,25 @@
-export type ScanFilter = "original" | "magic" | "grayscale" | "bw" | "soft";
+export type ScanFilter =
+  | "original"
+  | "magic"
+  | "grayscale"
+  | "bw"
+  | "soft"
+  | "vivid"
+  | "whiteboard"
+  | "deepen"
+  | "lighten";
+
+export const SCAN_FILTERS: { id: ScanFilter; label: string }[] = [
+  { id: "magic", label: "Magic" },
+  { id: "original", label: "Color" },
+  { id: "vivid", label: "Vivid" },
+  { id: "grayscale", label: "Gray" },
+  { id: "bw", label: "B&W" },
+  { id: "whiteboard", label: "Board" },
+  { id: "deepen", label: "Deepen" },
+  { id: "lighten", label: "Lighten" },
+  { id: "soft", label: "Soft" },
+];
 
 export type Point = { x: number; y: number };
 
@@ -28,6 +49,8 @@ export type OcrResult = {
   words: OcrWord[];
 };
 
+export type DocumentKind = "document" | "id_card";
+
 export type ScanPage = {
   id: string;
   imageDataUrl: string;
@@ -37,6 +60,8 @@ export type ScanPage = {
   createdAt: number;
   ocrText?: string;
   ocrWords?: OcrWord[];
+  /** For ID cards: front or back. */
+  side?: "front" | "back";
 };
 
 export type DocumentRecord = {
@@ -47,11 +72,15 @@ export type DocumentRecord = {
   updatedAt: number;
   ocrText?: string;
   thumbnail?: string;
+  kind?: DocumentKind;
+  watermark?: string;
 };
 
 export type ScanStep = "capture" | "crop" | "enhance" | "review";
 
-export type EditorTool = "view" | "erase" | "enhance" | "text";
+export type ScanMode = "document" | "id_card";
+
+export type EditorTool = "view" | "erase" | "enhance" | "text" | "annotate";
 
 export type EnhanceAdjustments = {
   brightness: number;

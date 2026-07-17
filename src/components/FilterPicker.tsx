@@ -1,14 +1,7 @@
 "use client";
 
 import type { ScanFilter } from "@/lib/types";
-
-const FILTERS: { id: ScanFilter; label: string }[] = [
-  { id: "magic", label: "Magic" },
-  { id: "original", label: "Color" },
-  { id: "grayscale", label: "Gray" },
-  { id: "bw", label: "B&W" },
-  { id: "soft", label: "Soft" },
-];
+import { SCAN_FILTERS } from "@/lib/types";
 
 type Props = {
   value: ScanFilter;
@@ -25,7 +18,7 @@ export function FilterPicker({ value, previewSrc, previews, onChange }: Props) {
         <img src={previews[value] ?? previewSrc} alt="Enhanced preview" />
       </div>
       <div className="filter-row" role="listbox" aria-label="Scan filters">
-        {FILTERS.map((f) => (
+        {SCAN_FILTERS.map((f) => (
           <button
             key={f.id}
             type="button"

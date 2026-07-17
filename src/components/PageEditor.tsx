@@ -12,11 +12,13 @@ import type {
   ScanFilter,
   ScanPage,
 } from "@/lib/types";
+import { SCAN_FILTERS } from "@/lib/types";
 import { getDocument, saveDocument } from "@/lib/storage";
 import { applyFilter, loadImage } from "@/lib/imageProcessing";
 import { recognizePage } from "@/lib/ocr";
 import {
   applyEnhanceAdjustments,
+  drawAnnotationStroke,
   drawFreeText,
   eraseAtPoints,
   eraseRegion,
@@ -30,14 +32,6 @@ type Props = {
   documentId: string;
   pageId?: string;
 };
-
-const FILTERS: { id: ScanFilter; label: string }[] = [
-  { id: "magic", label: "Magic" },
-  { id: "original", label: "Color" },
-  { id: "grayscale", label: "Gray" },
-  { id: "bw", label: "B&W" },
-  { id: "soft", label: "Soft" },
-];
 
 export function PageEditor({ documentId, pageId }: Props) {
   const router = useRouter();
@@ -64,6 +58,8 @@ export function PageEditor({ documentId, pageId }: Props) {
   const [addFontSize, setAddFontSize] = useState(28);
   const [placeMode, setPlaceMode] = useState(false);
   const [scale, setScale] = useState(1);
+  const [inkColor, setInkColor] = useState("#e11d48");
+  const [inkWidth, setInkWidth] = useState(4);
   const [docTextDraft, setDocTextDraft] = useState("");
   const strokePoints = useRef<{ x: number; y: number }[]>([]);
   const baseImageRef = useRef<string | null>(null);
@@ -211,29 +207,43 @@ export function PageEditor({ documentId, pageId }: Props) {
       return;
     }
 
-    if (tool !== "erase") return;
+    if (tool !== "erase" && tool !== "annotate") return;
     setDrawing(true);
     strokePoints.current = [pt];
     canvasRef.current?.setPointerCapture(e.pointerId);
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
-    if (!drawing || tool !== "erase") return;
+    if (!drawing || (tool !== "erase" && tool !== "annotate")) return;
     strokePoints.current.push(pointerToImage(e));
-    // Live preview circle
+    // Live preview
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx || !page) return;
     void loadImage(page.imageDataUrl).then((img) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "rgba(243, 248, 250, 0.85)";
-      ctx.strokeStyle = "#0f766e";
-      ctx.lineWidth = 1.5;
-      for (const p of strokePoints.current) {
+      if (tool === "erase") {
+        ctx.fillStyle = "rgba(243, 248, 250, 0.85)";
+        ctx.strokeStyle = "#0f766e";
+        ctx.lineWidth = 1.5;
+        for (const p of strokePoints.current) {
+          ctx.beginPath();
+          ctx.arc(p.x * scale, p.y * scale, brushSize * scale, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+      } else {
+        ctx.strokeStyle = inkColor;
+        ctx.lineWidth = inkWidth * scale;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
         ctx.beginPath();
-        ctx.arc(p.x * scale, p.y * scale, brushSize * scale, 0, Math.PI * 2);
-        ctx.fill();
+        const pts = strokePoints.current;
+        ctx.moveTo(pts[0].x * scale, pts[0].y * scale);
+        for (let i = 1; i < pts.length; i++) {
+          ctx.lineTo(pts[i].x * scale, pts[i].y * scale);
+        }
         ctx.stroke();
       }
     });
@@ -248,9 +258,20 @@ export function PageEditor({ documentId, pageId }: Props) {
     void (async () => {
       setBusy(true);
       try {
-        const next = await eraseAtPoints(page.imageDataUrl, points, brushSize);
-        await persistPage(next);
-        setStatus("Erased marks");
+        if (tool === "erase") {
+          const next = await eraseAtPoints(page.imageDataUrl, points, brushSize);
+          await persistPage(next);
+          setStatus("Erased marks");
+        } else if (tool === "annotate" && points.length > 1) {
+          const next = await drawAnnotationStroke(
+            page.imageDataUrl,
+            points,
+            inkColor,
+            inkWidth,
+          );
+          await persistPage(next);
+          setStatus("Annotation added");
+        }
       } finally {
         setBusy(false);
       }
@@ -374,7 +395,7 @@ export function PageEditor({ documentId, pageId }: Props) {
       const next =
         filter === "original" ? source : await applyFilter(source, filter);
       await persistPage(next, { filter });
-      setStatus(`${FILTERS.find((f) => f.id === filter)?.label ?? "Filter"} applied`);
+      setStatus(`${SCAN_FILTERS.find((f) => f.id === filter)?.label ?? "Filter"} applied`);
     } finally {
       setBusy(false);
     }
@@ -499,7 +520,7 @@ export function PageEditor({ documentId, pageId }: Props) {
             ["enhance", "Enhance"],
             ["erase", "Erase"],
             ["text", "Text"],
-            ["view", "View"],
+            ["annotate", "Mark"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -521,17 +542,17 @@ export function PageEditor({ documentId, pageId }: Props) {
           <div className="panel-stack">
             <p className="panel-title">Enhance photo</p>
             <div className="filter-row tight">
-              {FILTERS.map((f) => (
-                <button
-                  key={f.id}
-                  type="button"
-                  className={`mini-chip ${page.filter === f.id ? "is-active" : ""}`}
-                  onClick={() => void applyQuickFilter(f.id)}
-                  disabled={busy}
-                >
-                  {f.label}
-                </button>
-              ))}
+{SCAN_FILTERS.map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    className={`mini-chip ${page.filter === f.id ? "is-active" : ""}`}
+                    onClick={() => void applyQuickFilter(f.id)}
+                    disabled={busy}
+                  >
+                    {f.label}
+                  </button>
+                ))}
             </div>
             <label className="slider-row">
               <span>Brightness</span>
@@ -766,16 +787,34 @@ export function PageEditor({ documentId, pageId }: Props) {
           </div>
         )}
 
-        {tool === "view" && (
+        {tool === "annotate" && (
           <div className="panel-stack">
-            <p className="panel-title">Page</p>
-            <p className="hint">
-              Use Enhance for photo cleanup, Erase for marks, and Text to change
-              wording on the scan.
-            </p>
-            <Link href={`/document/${doc.id}`} className="btn-primary">
-              Back to document
-            </Link>
+            <p className="panel-title">Mark / annotate</p>
+            <p className="hint">Draw highlights or marks on the scan.</p>
+            <div className="row-actions">
+              {["#e11d48", "#2563eb", "#ca8a04", "#0f766e", "#111111"].map(
+                (c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={`swatch ${inkColor === c ? "is-active" : ""}`}
+                    style={{ background: c }}
+                    aria-label={`Ink ${c}`}
+                    onClick={() => setInkColor(c)}
+                  />
+                ),
+              )}
+            </div>
+            <label className="slider-row">
+              <span>Stroke {inkWidth}px</span>
+              <input
+                type="range"
+                min={2}
+                max={24}
+                value={inkWidth}
+                onChange={(e) => setInkWidth(Number(e.target.value))}
+              />
+            </label>
           </div>
         )}
       </div>

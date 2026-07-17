@@ -175,24 +175,44 @@ export async function applyFilter(
     if (filter === "grayscale") {
       data[i] = data[i + 1] = data[i + 2] = gray;
     } else if (filter === "bw") {
-      const v = gray > 150 ? 255 : 0;
+      const v = gray > 145 ? 255 : 0;
       data[i] = data[i + 1] = data[i + 2] = v;
     } else if (filter === "soft") {
       data[i] = clamp(r * 0.92 + 18);
       data[i + 1] = clamp(g * 0.92 + 18);
       data[i + 2] = clamp(b * 0.92 + 18);
     } else if (filter === "magic") {
-      // Contrast + mild whitening for document look
-      const contrast = 1.35;
-      const brightness = 12;
+      const contrast = 1.4;
+      const brightness = 14;
       const nr = clamp((r - 128) * contrast + 128 + brightness);
       const ng = clamp((g - 128) * contrast + 128 + brightness);
       const nb = clamp((b - 128) * contrast + 128 + brightness);
       const g2 = 0.299 * nr + 0.587 * ng + 0.114 * nb;
-      // Blend toward high-contrast grayscale for paper docs
-      data[i] = clamp(nr * 0.35 + g2 * 0.65 + 8);
-      data[i + 1] = clamp(ng * 0.35 + g2 * 0.65 + 8);
-      data[i + 2] = clamp(nb * 0.35 + g2 * 0.65 + 8);
+      data[i] = clamp(nr * 0.3 + g2 * 0.7 + 10);
+      data[i + 1] = clamp(ng * 0.3 + g2 * 0.7 + 10);
+      data[i + 2] = clamp(nb * 0.3 + g2 * 0.7 + 10);
+    } else if (filter === "vivid") {
+      const sat = 1.35;
+      const avg = (r + g + b) / 3;
+      data[i] = clamp(avg + (r - avg) * sat);
+      data[i + 1] = clamp(avg + (g - avg) * sat);
+      data[i + 2] = clamp(avg + (b - avg) * sat);
+      data[i] = clamp((data[i] - 128) * 1.12 + 128);
+      data[i + 1] = clamp((data[i + 1] - 128) * 1.12 + 128);
+      data[i + 2] = clamp((data[i + 2] - 128) * 1.12 + 128);
+    } else if (filter === "whiteboard") {
+      // Boost whites, crush mid shadows for marker boards
+      const boosted = clamp((gray - 40) * 1.55);
+      const ink = gray < 110 ? clamp(gray * 0.55) : boosted;
+      data[i] = data[i + 1] = data[i + 2] = ink;
+    } else if (filter === "deepen") {
+      data[i] = clamp((r - 128) * 1.45 + 128 - 8);
+      data[i + 1] = clamp((g - 128) * 1.45 + 128 - 8);
+      data[i + 2] = clamp((b - 128) * 1.45 + 128 - 8);
+    } else if (filter === "lighten") {
+      data[i] = clamp(r * 0.85 + 48);
+      data[i + 1] = clamp(g * 0.85 + 48);
+      data[i + 2] = clamp(b * 0.85 + 48);
     }
   }
 
@@ -200,13 +220,13 @@ export async function applyFilter(
   return canvas.toDataURL("image/jpeg", 0.92);
 }
 
-/** Lightweight auto-edge: finds bright paper-ish region and returns a quad. */
+/** Edge-aware document bounds using luminance + simple gradient. */
 export async function detectDocumentQuad(imageSrc: string): Promise<Quad> {
   const img = await loadImage(imageSrc);
   const w = img.naturalWidth;
   const h = img.naturalHeight;
   const canvas = document.createElement("canvas");
-  const maxSide = 320;
+  const maxSide = 400;
   const scale = Math.min(1, maxSide / Math.max(w, h));
   canvas.width = Math.max(1, Math.round(w * scale));
   canvas.height = Math.max(1, Math.round(h * scale));
@@ -214,18 +234,30 @@ export async function detectDocumentQuad(imageSrc: string): Promise<Quad> {
   if (!ctx) return defaultQuad(w, h);
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
   const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const cw = canvas.width;
+  const ch = canvas.height;
 
-  let minX = canvas.width;
-  let minY = canvas.height;
+  const lumAt = (x: number, y: number) => {
+    const i = (y * cw + x) * 4;
+    return 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+  };
+
+  // Score map: bright regions with edge nearby (paper on darker desk)
+  let minX = cw;
+  let minY = ch;
   let maxX = 0;
   let maxY = 0;
   let found = false;
+  const threshold = 125;
 
-  for (let y = 0; y < canvas.height; y++) {
-    for (let x = 0; x < canvas.width; x++) {
-      const i = (y * canvas.width + x) * 4;
-      const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-      if (lum > 140) {
+  for (let y = 1; y < ch - 1; y++) {
+    for (let x = 1; x < cw - 1; x++) {
+      const lum = lumAt(x, y);
+      if (lum < threshold) continue;
+      const gx = Math.abs(lumAt(x + 1, y) - lumAt(x - 1, y));
+      const gy = Math.abs(lumAt(x, y + 1) - lumAt(x, y - 1));
+      // Prefer interior paper, allow edges
+      if (lum > threshold || gx + gy > 40) {
         found = true;
         if (x < minX) minX = x;
         if (y < minY) minY = y;
@@ -235,20 +267,57 @@ export async function detectDocumentQuad(imageSrc: string): Promise<Quad> {
     }
   }
 
-  if (!found || maxX - minX < canvas.width * 0.25 || maxY - minY < canvas.height * 0.25) {
+  if (!found || maxX - minX < cw * 0.2 || maxY - minY < ch * 0.2) {
     return defaultQuad(w, h);
   }
 
-  const pad = 4;
+  // Tighten using row/col projections
+  const colScore = new Array(cw).fill(0);
+  const rowScore = new Array(ch).fill(0);
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      if (lumAt(x, y) > threshold) {
+        colScore[x]++;
+        rowScore[y]++;
+      }
+    }
+  }
+  const colCut = (maxY - minY) * 0.12;
+  const rowCut = (maxX - minX) * 0.12;
+  while (minX < maxX && colScore[minX] < colCut) minX++;
+  while (maxX > minX && colScore[maxX] < colCut) maxX--;
+  while (minY < maxY && rowScore[minY] < rowCut) minY++;
+  while (maxY > minY && rowScore[maxY] < rowCut) maxY--;
+
+  const pad = 3;
   minX = Math.max(0, minX - pad) / scale;
   minY = Math.max(0, minY - pad) / scale;
-  maxX = Math.min(canvas.width, maxX + pad) / scale;
-  maxY = Math.min(canvas.height, maxY + pad) / scale;
+  maxX = Math.min(cw - 1, maxX + pad) / scale;
+  maxY = Math.min(ch - 1, maxY + pad) / scale;
 
   return {
     tl: { x: minX, y: minY },
     tr: { x: maxX, y: minY },
     br: { x: maxX, y: maxY },
     bl: { x: minX, y: maxY },
+  };
+}
+
+/** ID-card friendly default: centered landscape card aspect ~1.586. */
+export function defaultIdQuad(width: number, height: number): Quad {
+  const targetRatio = 85.6 / 54;
+  let cardW = width * 0.82;
+  let cardH = cardW / targetRatio;
+  if (cardH > height * 0.72) {
+    cardH = height * 0.72;
+    cardW = cardH * targetRatio;
+  }
+  const x0 = (width - cardW) / 2;
+  const y0 = (height - cardH) / 2;
+  return {
+    tl: { x: x0, y: y0 },
+    tr: { x: x0 + cardW, y: y0 },
+    br: { x: x0 + cardW, y: y0 + cardH },
+    bl: { x: x0, y: y0 + cardH },
   };
 }

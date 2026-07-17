@@ -277,6 +277,27 @@ export async function drawFreeText(
   });
 }
 
+export async function drawAnnotationStroke(
+  imageSrc: string,
+  points: { x: number; y: number }[],
+  color: string,
+  width: number,
+): Promise<string> {
+  if (points.length < 2) return imageSrc;
+  return withCanvas(imageSrc, (ctx) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.stroke();
+  });
+}
+
 export function rebuildDocumentText(pageTexts: (string | undefined)[]): string {
   return pageTexts
     .map((t, i) => {

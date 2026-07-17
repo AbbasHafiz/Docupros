@@ -9,23 +9,34 @@ import { AppHeader } from "./AppHeader";
 import { createId } from "@/lib/id";
 import {
   applyFilter,
+  defaultIdQuad,
   defaultQuad,
   detectDocumentQuad,
   loadImage,
   warpPerspective,
 } from "@/lib/imageProcessing";
 import { saveDocument, getDocument } from "@/lib/storage";
-import type { DocumentRecord, Quad, ScanFilter, ScanPage } from "@/lib/types";
+import {
+  SCAN_FILTERS,
+  type DocumentRecord,
+  type Quad,
+  type ScanFilter,
+  type ScanMode,
+  type ScanPage,
+} from "@/lib/types";
 
 type Props = {
   appendToId?: string;
+  mode?: ScanMode;
 };
 
-export function ScanFlow({ appendToId }: Props) {
+export function ScanFlow({ appendToId, mode = "document" }: Props) {
   const router = useRouter();
+  const isId = mode === "id_card";
   const [step, setStep] = useState<"capture" | "crop" | "enhance" | "review">(
     "capture",
   );
+  const [idSide, setIdSide] = useState<"front" | "back">("front");
   const [rawImage, setRawImage] = useState<string | null>(null);
   const [quad, setQuad] = useState<Quad | null>(null);
   const [cropped, setCropped] = useState<string | null>(null);
@@ -54,7 +65,10 @@ export function ScanFlow({ appendToId }: Props) {
     try {
       const img = await loadImage(dataUrl);
       const detected = await detectDocumentQuad(dataUrl);
-      setQuad(detected ?? defaultQuad(img.naturalWidth, img.naturalHeight));
+      const fallback = isId
+        ? defaultIdQuad(img.naturalWidth, img.naturalHeight)
+        : defaultQuad(img.naturalWidth, img.naturalHeight);
+      setQuad(detected ?? fallback);
       setStep("crop");
     } finally {
       setBusy(false);
@@ -67,20 +81,11 @@ export function ScanFlow({ appendToId }: Props) {
     try {
       const warped = await warpPerspective(rawImage, quad);
       setCropped(warped);
-      const filters: ScanFilter[] = [
-        "magic",
-        "original",
-        "grayscale",
-        "bw",
-        "soft",
-      ];
       const next: Partial<Record<ScanFilter, string>> = { original: warped };
       await Promise.all(
-        filters
-          .filter((f) => f !== "original")
-          .map(async (f) => {
-            next[f] = await applyFilter(warped, f);
-          }),
+        SCAN_FILTERS.filter((f) => f.id !== "original").map(async (f) => {
+          next[f.id] = await applyFilter(warped, f.id);
+        }),
       );
       setPreviews(next);
       setFilter("magic");
@@ -101,26 +106,45 @@ export function ScanFlow({ appendToId }: Props) {
         originalDataUrl: finalImage,
         filter,
         createdAt: Date.now(),
+        side: isId ? idSide : undefined,
       };
-      setPages((prev) => [...prev, page]);
+
+      setPages((prev) => {
+        if (!isId) return [...prev, page];
+        const withoutSide = prev.filter((p) => p.side !== idSide);
+        return [...withoutSide, page];
+      });
+
       setRawImage(null);
       setQuad(null);
       setCropped(null);
       setPreviews({});
-      setStep("review");
+
+      if (isId) {
+        if (idSide === "front") {
+          setIdSide("back");
+          setStep("capture");
+        } else {
+          setStep("review");
+        }
+      } else {
+        setStep("review");
+      }
     } finally {
       setBusy(false);
     }
-  }, [cropped, filter]);
+  }, [cropped, filter, idSide, isId]);
 
   const saveAll = async () => {
     if (pages.length === 0) return;
     setBusy(true);
     try {
       const now = Date.now();
+      const kind = isId || existing?.kind === "id_card" ? "id_card" : "document";
       if (existing) {
         const updated: DocumentRecord = {
           ...existing,
+          kind,
           pages,
           updatedAt: now,
           thumbnail: pages[0]?.imageDataUrl,
@@ -131,8 +155,11 @@ export function ScanFlow({ appendToId }: Props) {
         const id = createId();
         const doc: DocumentRecord = {
           id,
-          title: `Scan ${new Date(now).toLocaleString()}`,
+          title: isId
+            ? `ID Card ${new Date(now).toLocaleString()}`
+            : `Scan ${new Date(now).toLocaleString()}`,
           pages,
+          kind,
           createdAt: now,
           updatedAt: now,
           thumbnail: pages[0]?.imageDataUrl,
@@ -145,8 +172,20 @@ export function ScanFlow({ appendToId }: Props) {
     }
   };
 
-  const title =
-    step === "capture"
+  const front = pages.find((p) => p.side === "front") ?? pages[0];
+  const back = pages.find((p) => p.side === "back");
+
+  const title = isId
+    ? step === "capture"
+      ? idSide === "front"
+        ? "ID Front"
+        : "ID Back"
+      : step === "crop"
+        ? "Crop ID"
+        : step === "enhance"
+          ? "Enhance ID"
+          : "ID Ready"
+    : step === "capture"
       ? "Scan"
       : step === "crop"
         ? "Crop"
@@ -158,9 +197,9 @@ export function ScanFlow({ appendToId }: Props) {
     <div className="scan-flow">
       <AppHeader
         title={title}
-        backHref={step === "capture" ? "/" : undefined}
+        backHref={step === "capture" && idSide === "front" ? "/" : undefined}
         action={
-          step !== "capture" ? (
+          step !== "capture" || (isId && idSide === "back") ? (
             <button
               type="button"
               className="text-btn"
@@ -169,7 +208,14 @@ export function ScanFlow({ appendToId }: Props) {
                   setStep("capture");
                   setRawImage(null);
                 } else if (step === "enhance") setStep("crop");
-                else if (step === "review") setStep("capture");
+                else if (step === "review") {
+                  if (isId) {
+                    setIdSide("back");
+                    setStep("capture");
+                  } else setStep("capture");
+                } else if (step === "capture" && isId && idSide === "back") {
+                  setIdSide("front");
+                }
               }}
             >
               Back
@@ -178,7 +224,18 @@ export function ScanFlow({ appendToId }: Props) {
         }
       />
 
-      {busy && <div className="busy-bar" aria-live="polite">Working…</div>}
+      {isId && step === "capture" && (
+        <div className="id-banner">
+          Scan the <strong>{idSide}</strong> of your ID card
+          {idSide === "back" && front ? " · Front saved" : ""}
+        </div>
+      )}
+
+      {busy && (
+        <div className="busy-bar" aria-live="polite">
+          Working…
+        </div>
+      )}
 
       {step === "capture" && (
         <CameraCapture
@@ -218,7 +275,11 @@ export function ScanFlow({ appendToId }: Props) {
               onClick={() => void addCurrentPage()}
               disabled={busy}
             >
-              Add page
+              {isId
+                ? idSide === "front"
+                  ? "Save front → scan back"
+                  : "Save back"
+                : "Add page"}
             </button>
           </div>
         </div>
@@ -227,29 +288,54 @@ export function ScanFlow({ appendToId }: Props) {
       {step === "review" && (
         <div className="step-panel review-panel">
           <div className="page-strip">
-            {pages.map((p, i) => (
-              <figure key={p.id} className="page-thumb">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={p.imageDataUrl} alt={`Page ${i + 1}`} />
-                <figcaption>Page {i + 1}</figcaption>
-              </figure>
-            ))}
+            {(isId ? [front, back].filter(Boolean) : pages).map((p, i) =>
+              p ? (
+                <figure key={p.id} className="page-thumb">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={p.imageDataUrl}
+                    alt={p.side ? `${p.side}` : `Page ${i + 1}`}
+                  />
+                  <figcaption>
+                    {p.side
+                      ? p.side === "front"
+                        ? "Front"
+                        : "Back"
+                      : `Page ${i + 1}`}
+                  </figcaption>
+                </figure>
+              ) : null,
+            )}
           </div>
           <div className="step-actions stacked">
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => setStep("capture")}
-            >
-              Add another page
-            </button>
+            {!isId && (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setStep("capture")}
+              >
+                Add another page
+              </button>
+            )}
+            {isId && (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setIdSide(back ? "front" : "back");
+                  setStep("capture");
+                }}
+              >
+                Rescan {back ? "a side" : "back"}
+              </button>
+            )}
             <button
               type="button"
               className="btn-primary"
               onClick={() => void saveAll()}
-              disabled={busy || pages.length === 0}
+              disabled={busy || pages.length === 0 || (isId && !front)}
             >
-              Save document
+              {isId ? "Save ID card" : "Save document"}
             </button>
           </div>
         </div>

@@ -143,6 +143,110 @@ a {
   line-height: 1.55;
 }
 
+.mode-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin: 0 0 1.5rem;
+}
+
+.mode-card {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem 1.05rem;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 10px 28px rgba(11, 28, 36, 0.06);
+  transition: transform 0.15s ease;
+}
+
+.mode-card:hover {
+  transform: translateY(-2px);
+}
+
+.mode-card.accent {
+  background: linear-gradient(
+    145deg,
+    rgba(45, 212, 191, 0.22),
+    rgba(255, 255, 255, 0.7)
+  );
+  border-color: rgba(15, 118, 110, 0.25);
+}
+
+.mode-title {
+  font-family: var(--font-display);
+  font-weight: 720;
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+}
+
+.mode-desc {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.id-banner {
+  text-align: center;
+  padding: 0.55rem 1rem;
+  background: rgba(15, 118, 110, 0.14);
+  color: var(--teal-deep);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.id-banner.soft {
+  background: rgba(15, 118, 110, 0.08);
+}
+
+.manage-panel {
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto 1.25rem;
+  padding: 0 1.1rem;
+}
+
+.manage-panel h2 {
+  margin: 0 0 0.65rem;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+}
+
+.manage-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.manage-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--line);
+  font-weight: 600;
+}
+
+.swatch {
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.swatch.is-active {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 2px #fff;
+}
+
 .fab {
   position: fixed;
   right: 1.2rem;
@@ -656,6 +760,10 @@ a {
 }
 
 .editor-canvas.tool-erase {
+  cursor: crosshair;
+}
+
+.editor-canvas.tool-annotate {
   cursor: crosshair;
 }
 

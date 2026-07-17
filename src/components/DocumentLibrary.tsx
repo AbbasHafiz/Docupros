@@ -63,6 +63,7 @@ export function DocumentLibrary() {
               <div className="doc-meta">
                 <h2>{doc.title}</h2>
                 <p>
+                  {doc.kind === "id_card" ? "ID card · " : ""}
                   {doc.pages.length} page{doc.pages.length === 1 ? "" : "s"} ·{" "}
                   {new Date(doc.updatedAt).toLocaleDateString()}
                 </p>
