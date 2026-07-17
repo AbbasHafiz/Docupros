@@ -141,17 +141,34 @@ export async function printDocumentPages(
     normalized.push(dataUrl);
   }
   const parts = normalized
-    .map((src) => `<div class="page"><img src="${src}" /></div>`)
+    .map(
+      (src) =>
+        `<div class="page"><img src="${src}" alt="" /></div>`,
+    )
     .join("");
   const w = window.open("", "_blank", "noopener,noreferrer,width=900,height=1200");
   if (!w) throw new Error("Pop-up blocked — allow pop-ups to print");
   w.document.write(`<!doctype html><html><head><title>${title}</title>
     <style>
-      @page { margin: 10mm; }
-      body { margin: 0; font-family: sans-serif; }
-      .page { page-break-after: always; text-align: center; }
-      .page:last-child { page-break-after: auto; }
-      img { max-width: 100%; max-height: 260mm; object-fit: contain; }
+      @page { size: A4 portrait; margin: 8mm; }
+      html, body { margin: 0; padding: 0; background: #fff; }
+      .page {
+        page-break-after: always;
+        break-after: page;
+        width: 100%;
+        height: 281mm;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+      }
+      .page:last-child { page-break-after: auto; break-after: auto; }
+      img {
+        max-width: 100%;
+        max-height: 100%;
+        width: auto;
+        height: auto;
+        object-fit: contain;
+      }
     </style></head><body>${parts}
     <script>window.onload=()=>setTimeout(()=>{window.focus();window.print()},250)</script>
     </body></html>`);
