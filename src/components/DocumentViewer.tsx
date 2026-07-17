@@ -22,6 +22,7 @@ import {
   looksLikePdfPlaceholder,
   pdfBase64ToImageDataUrls,
 } from "@/lib/pdfConvert";
+import { ShareSheet } from "./ShareSheet";
 
 type Props = { id: string };
 
@@ -45,6 +46,7 @@ export function DocumentViewer({ id }: Props) {
   const [ocrDraft, setOcrDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [manage, setManage] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [renderStatus, setRenderStatus] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const rerenderedRef = useRef<string | null>(null);
@@ -225,37 +227,6 @@ export function DocumentViewer({ id }: Props) {
       }
     } catch (e) {
       alert(e instanceof Error ? e.message : "PDF export failed");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const shareCnic = async () => {
-    if (!front) return;
-    setBusy(true);
-    try {
-      const blob = await exportCnicSizedPdf({
-        front: front.imageDataUrl,
-        back: back?.imageDataUrl,
-        title: doc.title,
-        watermark: doc.watermark,
-      });
-      const file = new File([blob], cnicFilename(doc.title), {
-        type: "application/pdf",
-      });
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({
-          title: doc.title || "Pakistan CNIC",
-          text: "CNIC 85.6×53.98 mm",
-          files: [file],
-        });
-      } else {
-        downloadBlob(blob, cnicFilename(doc.title));
-      }
-    } catch (e) {
-      if ((e as Error)?.name !== "AbortError") {
-        alert(e instanceof Error ? e.message : "Share failed");
-      }
     } finally {
       setBusy(false);
     }
@@ -485,25 +456,23 @@ export function DocumentViewer({ id }: Props) {
         >
           {isId ? "Export CNIC" : "Export PDF"}
         </button>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={() => setShareOpen(true)}
+          disabled={busy}
+        >
+          Share
+        </button>
         {isId && (
-          <>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => void exportPdf(true)}
-              disabled={busy}
-            >
-              Export A4 print
-            </button>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => void shareCnic()}
-              disabled={busy}
-            >
-              Share CNIC
-            </button>
-          </>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => void exportPdf(true)}
+            disabled={busy}
+          >
+            Export A4 print
+          </button>
         )}
         {doc.sourcePdfBase64 && (
           <button
@@ -641,6 +610,18 @@ export function DocumentViewer({ id }: Props) {
           )}
         </section>
       )}
+
+      <ShareSheet
+        doc={doc}
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        onStatus={(msg) => {
+          setRenderStatus(msg);
+          if (msg) {
+            window.setTimeout(() => setRenderStatus(null), 2500);
+          }
+        }}
+      />
     </div>
   );
 }
