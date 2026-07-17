@@ -72,12 +72,6 @@ export function DocumentLibrary() {
                   {doc.pages.length} page{doc.pages.length === 1 ? "" : "s"} ·{" "}
                   {new Date(doc.updatedAt).toLocaleDateString()}
                 </p>
-                {(doc.colleagueIds?.length ?? 0) > 0 && (
-                  <span className="doc-colleague-tag">
-                    Shared with colleague
-                    {(doc.colleagueIds?.length ?? 0) > 1 ? "s" : ""}
-                  </span>
-                )}
               </div>
             </Link>
             <button

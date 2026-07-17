@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
-import type { Colleague, DocumentRecord } from "./types";
+import type { DocumentRecord } from "./types";
 
 interface DocuprosDB extends DBSchema {
   documents: {
@@ -7,9 +7,18 @@ interface DocuprosDB extends DBSchema {
     value: DocumentRecord;
     indexes: { "by-updated": number };
   };
+  // Kept for users who already upgraded to v2; unused by the UI now.
   colleagues: {
     key: string;
-    value: Colleague;
+    value: {
+      id: string;
+      name: string;
+      email?: string;
+      phone?: string;
+      note?: string;
+      createdAt: number;
+      updatedAt: number;
+    };
     indexes: { "by-name": string };
   };
 }
@@ -58,25 +67,4 @@ export async function saveDocument(doc: DocumentRecord): Promise<void> {
 export async function deleteDocument(id: string): Promise<void> {
   const db = await getDb();
   await db.delete("documents", id);
-}
-
-export async function listColleagues(): Promise<Colleague[]> {
-  const db = await getDb();
-  const items = await db.getAllFromIndex("colleagues", "by-name");
-  return items.sort((a, b) => a.name.localeCompare(b.name));
-}
-
-export async function getColleague(id: string): Promise<Colleague | undefined> {
-  const db = await getDb();
-  return db.get("colleagues", id);
-}
-
-export async function saveColleague(colleague: Colleague): Promise<void> {
-  const db = await getDb();
-  await db.put("colleagues", colleague);
-}
-
-export async function deleteColleague(id: string): Promise<void> {
-  const db = await getDb();
-  await db.delete("colleagues", id);
 }

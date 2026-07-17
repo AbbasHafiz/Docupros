@@ -44,7 +44,6 @@ import {
 } from "@/lib/editOperations";
 import { documentHref } from "@/lib/routes";
 import { ShareSheet } from "./ShareSheet";
-import { ColleagueSheet } from "./ColleagueSheet";
 
 type Props = {
   documentId: string;
@@ -117,7 +116,6 @@ export function PageEditor({ documentId, pageId }: Props) {
   const [cropRaw, setCropRaw] = useState<string | null>(null);
   const [cropQuad, setCropQuad] = useState<Quad | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
-  const [colleagueOpen, setColleagueOpen] = useState(false);
   const [previews, setPreviews] = useState<Partial<Record<ScanFilter, string>>>(
     {},
   );
@@ -860,14 +858,6 @@ export function PageEditor({ documentId, pageId }: Props) {
           </button>
           <button
             type="button"
-            className="text-btn"
-            onClick={() => setColleagueOpen(true)}
-            disabled={busy}
-          >
-            Colleague
-          </button>
-          <button
-            type="button"
             className="btn-done"
             onClick={() => router.push(documentHref(doc.id))}
           >
@@ -1425,23 +1415,6 @@ export function PageEditor({ documentId, pageId }: Props) {
           doc={doc}
           open={shareOpen}
           onClose={() => setShareOpen(false)}
-          onOpenColleague={() => {
-            setShareOpen(false);
-            setColleagueOpen(true);
-          }}
-          onStatus={(msg) => {
-            setStatus(msg);
-            if (msg) window.setTimeout(() => setStatus(null), 2200);
-          }}
-        />
-      )}
-
-      {doc && (
-        <ColleagueSheet
-          doc={doc}
-          open={colleagueOpen}
-          onClose={() => setColleagueOpen(false)}
-          onDocUpdate={(updated) => setDoc(updated)}
           onStatus={(msg) => {
             setStatus(msg);
             if (msg) window.setTimeout(() => setStatus(null), 2200);

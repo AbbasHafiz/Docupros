@@ -96,19 +96,6 @@ export type DocumentRecord = {
   /** App-level lock password (SHA-256 hex). */
   lockHash?: string;
   locked?: boolean;
-  /** Colleague ids this document was shared with / assigned to. */
-  colleagueIds?: string[];
-};
-
-/** Local contact used to share documents with coworkers. */
-export type Colleague = {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  note?: string;
-  createdAt: number;
-  updatedAt: number;
 };
 
 export type ScanStep = "capture" | "crop" | "enhance" | "review";
