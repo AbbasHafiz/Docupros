@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppHeader } from "./AppHeader";
-import type { DocumentRecord } from "@/lib/types";
+import type { DocumentRecord, ScanPage } from "@/lib/types";
 import { deleteDocument, getDocument, saveDocument } from "@/lib/storage";
 import { downloadBlob, exportDocumentPdf, printDocumentPages } from "@/lib/pdf";
 import { extractTextFromImages } from "@/lib/ocr";
@@ -12,6 +12,11 @@ import { rebuildDocumentText } from "@/lib/editOperations";
 import { exportIdCardPdf, printIdCard } from "@/lib/idPrint";
 import { hashPassword } from "@/lib/toolsOps";
 import { documentHref } from "@/lib/routes";
+import { createId } from "@/lib/id";
+import {
+  looksLikePdfPlaceholder,
+  pdfBase64ToImageDataUrls,
+} from "@/lib/pdfConvert";
 
 type Props = { id: string };
 
@@ -35,7 +40,9 @@ export function DocumentViewer({ id }: Props) {
   const [ocrDraft, setOcrDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [manage, setManage] = useState(false);
+  const [renderStatus, setRenderStatus] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  const rerenderedRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,6 +58,57 @@ export function DocumentViewer({ id }: Props) {
       cancelled = true;
     };
   }, [id]);
+
+  const reloadPdfPages = async (target?: DocumentRecord) => {
+    const current = target ?? doc;
+    if (!current?.sourcePdfBase64) {
+      alert("No source PDF stored for this document. Re-import the file.");
+      return;
+    }
+    setBusy(true);
+    setRenderStatus("Rendering PDF pages…");
+    try {
+      const images = await pdfBase64ToImageDataUrls(current.sourcePdfBase64);
+      const now = Date.now();
+      const pages: ScanPage[] = images.map((imageDataUrl, i) => ({
+        id: createId(),
+        imageDataUrl,
+        originalDataUrl: imageDataUrl,
+        filter: "original" as const,
+        createdAt: now + i,
+      }));
+      const updated = withUpdate(current, {
+        pages,
+        thumbnail: pages[0]?.imageDataUrl,
+        kind: current.kind === "pdf_form" ? "pdf_form" : "document",
+      });
+      await saveDocument(updated);
+      setDoc(updated);
+      setActive(0);
+      setRenderStatus(`Loaded ${pages.length} page(s)`);
+    } catch (e) {
+      setRenderStatus(e instanceof Error ? e.message : "Failed to render PDF");
+      alert(e instanceof Error ? e.message : "Failed to render PDF pages");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Auto-fix old blank "Imported PDF form" placeholders when source PDF exists
+  useEffect(() => {
+    if (!doc?.sourcePdfBase64) return;
+    if (rerenderedRef.current === doc.id) return;
+    const needs =
+      doc.pages.some((p) => p.id === "imported") ||
+      doc.pages.some((p) => looksLikePdfPlaceholder(p.imageDataUrl));
+    if (!needs) return;
+    rerenderedRef.current = doc.id;
+    const handle = window.setTimeout(() => {
+      void reloadPdfPages(doc);
+    }, 0);
+    return () => window.clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc?.id, doc?.sourcePdfBase64]);
 
   if (doc === undefined) {
     return <div className="center-pad muted">Loading…</div>;
@@ -311,6 +369,19 @@ export function DocumentViewer({ id }: Props) {
         />
       </div>
 
+      {(busy || renderStatus) && (
+        <p className="busy-bar" aria-live="polite">
+          {busy ? renderStatus || "Working…" : renderStatus}
+        </p>
+      )}
+
+      {doc.sourcePdfBase64 && (
+        <p className="hint" style={{ textAlign: "center", margin: "0.5rem 0 0" }}>
+          Imported from PDF — use <strong>Reload PDF pages</strong> if the
+          preview looks blank.
+        </p>
+      )}
+
       {doc.pages.length > 1 && (
         <div className="page-strip compact">
           {doc.pages.map((p, i) => (
@@ -376,6 +447,16 @@ export function DocumentViewer({ id }: Props) {
         >
           Export PDF
         </button>
+        {doc.sourcePdfBase64 && (
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => void reloadPdfPages()}
+            disabled={busy}
+          >
+            Reload PDF pages
+          </button>
+        )}
         <Link
           href={`/scan?append=${doc.id}${isId ? "&mode=id_card" : ""}`}
           className="btn-secondary"
