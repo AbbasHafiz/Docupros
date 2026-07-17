@@ -34,10 +34,13 @@ import {
   drawFreeText,
   eraseRegion,
   findReplaceOnImage,
+  handwritingEraseAtPoints,
   rebuildDocumentText,
+  removeHandwriting,
   replaceWordOnImage,
   rotateImage,
   smartEraseAtPoints,
+  type HandwritingMode,
 } from "@/lib/editOperations";
 import { downloadBlob, exportDocumentPdf } from "@/lib/pdf";
 
@@ -51,6 +54,7 @@ const IMAGE_TOOLS: { id: ImageTool; label: string; icon: string }[] = [
   { id: "filter", label: "Filter", icon: "◎" },
   { id: "editText", label: "Edit Text", icon: "T" },
   { id: "smartErase", label: "Smart Erase", icon: "⌫" },
+  { id: "removeHandwriting", label: "Handwriting", icon: "✍" },
   { id: "retake", label: "Retake", icon: "↻" },
   { id: "sign", label: "Sign", icon: "✎" },
   { id: "addText", label: "Add Text", icon: "A" },
@@ -67,6 +71,8 @@ export function PageEditor({ documentId, pageId }: Props) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [brushSize, setBrushSize] = useState(32);
+  const [hwMode, setHwMode] = useState<HandwritingMode>("both");
+  const [hwStrength, setHwStrength] = useState(55);
   const [drawing, setDrawing] = useState(false);
   const [adjust, setAdjust] = useState<EnhanceAdjustments>({
     brightness: 0,
@@ -338,6 +344,7 @@ export function PageEditor({ documentId, pageId }: Props) {
 
     if (
       imageTool === "smartErase" ||
+      imageTool === "removeHandwriting" ||
       (tab === "markup" && (markupTool === "pen" || markupTool === "highlight"))
     ) {
       setDrawing(true);
@@ -357,8 +364,11 @@ export function PageEditor({ documentId, pageId }: Props) {
     void loadImage(page.imageDataUrl).then((img) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      if (imageTool === "smartErase") {
-        ctx.fillStyle = "rgba(255,255,255,0.75)";
+      if (imageTool === "smartErase" || imageTool === "removeHandwriting") {
+        ctx.fillStyle =
+          imageTool === "removeHandwriting"
+            ? "rgba(220, 38, 38, 0.35)"
+            : "rgba(255,255,255,0.75)";
         for (const p of strokePoints.current) {
           ctx.beginPath();
           ctx.arc(p.x * scale, p.y * scale, brushSize * scale, 0, Math.PI * 2);
@@ -401,6 +411,14 @@ export function PageEditor({ documentId, pageId }: Props) {
           );
           await persistPage(next);
           setStatus("Smart erase applied");
+        } else if (imageTool === "removeHandwriting") {
+          const next = await handwritingEraseAtPoints(
+            page.imageDataUrl,
+            points,
+            brushSize,
+          );
+          await persistPage(next);
+          setStatus("Handwriting brushed away");
         } else if (tab === "markup") {
           const next = await drawAnnotationStroke(
             page.imageDataUrl,
@@ -686,6 +704,7 @@ export function PageEditor({ documentId, pageId }: Props) {
               ref={canvasRef}
               className={`editor-canvas ${
                 imageTool === "smartErase" ||
+                imageTool === "removeHandwriting" ||
                 placeMode ||
                 tab === "markup"
                   ? "tool-erase"
@@ -852,6 +871,77 @@ export function PageEditor({ documentId, pageId }: Props) {
               onChange={(e) => setBrushSize(Number(e.target.value))}
             />
           </label>
+        </div>
+      )}
+
+      {!cropRaw && imageTool === "removeHandwriting" && (
+        <div className="cs-sheet">
+          <p className="panel-title">Remove Handwriting</p>
+          <p className="hint">
+            Auto-clean pen marks, or brush only handwriting-like ink.
+          </p>
+          <div className="row-actions">
+            {(
+              [
+                ["both", "Color + thin"],
+                ["color", "Color ink"],
+                ["thin", "Thin black"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={`mini-chip ${hwMode === id ? "is-active" : ""}`}
+                onClick={() => setHwMode(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <label className="slider-row">
+            <span>Auto strength {hwStrength}%</span>
+            <input
+              type="range"
+              min={20}
+              max={90}
+              value={hwStrength}
+              onChange={(e) => setHwStrength(Number(e.target.value))}
+            />
+          </label>
+          <label className="slider-row">
+            <span>Brush {brushSize}px</span>
+            <input
+              type="range"
+              min={12}
+              max={90}
+              value={brushSize}
+              onChange={(e) => setBrushSize(Number(e.target.value))}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={busy}
+            onClick={() =>
+              void (async () => {
+                if (!page) return;
+                setBusy(true);
+                try {
+                  const next = await removeHandwriting(
+                    page.imageDataUrl,
+                    hwMode,
+                    hwStrength / 100,
+                  );
+                  await persistPage(next);
+                  setStatus("Handwriting removed");
+                } finally {
+                  setBusy(false);
+                }
+              })()
+            }
+          >
+            Auto remove on page
+          </button>
         </div>
       )}
 

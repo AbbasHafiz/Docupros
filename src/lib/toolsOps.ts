@@ -45,6 +45,7 @@ export const TOOL_SECTIONS: {
       { id: "wm", label: "Add Watermark", href: "/tools/pick?action=watermark", color: "#db2777", icon: "©", status: "ready" },
       { id: "smart", label: "Smart Erase", href: "/tools/pick?action=erase", color: "#059669", icon: "⌫", status: "ready" },
       { id: "marks", label: "Erase Marks", href: "/tools/pick?action=erase", color: "#0f766e", icon: "✗", status: "ready" },
+      { id: "handwriting", label: "Remove Handwriting", href: "/tools/remove-handwriting", color: "#dc2626", icon: "✍", status: "ready" },
       { id: "restore", label: "Restore Photo", href: "/tools/restore", color: "#c026d3", icon: "✨", status: "ready" },
       { id: "merge", label: "Merge Files", href: "/tools/merge", color: "#4f46e5", icon: "⧉", status: "ready" },
       { id: "extract", label: "Extract Pages", href: "/tools/extract-pages", color: "#0284c7", icon: "▤", status: "ready" },

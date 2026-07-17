@@ -114,6 +114,7 @@ export type ImageTool =
   | "filter"
   | "editText"
   | "smartErase"
+  | "removeHandwriting"
   | "retake"
   | "sign"
   | "addText";

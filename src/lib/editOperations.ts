@@ -344,6 +344,178 @@ export async function smartEraseAtPoints(
   });
 }
 
+export type HandwritingMode = "color" | "thin" | "both";
+
+function isColorInk(r: number, g: number, b: number): boolean {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const chroma = max - min;
+  const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+  if (lum > 210 || chroma < 28) return false;
+  // Blue / cyan pen
+  if (b > r + 15 && b > g + 5 && chroma > 28) return true;
+  // Red / pink / orange pen
+  if (r > g + 20 && r > b + 15 && chroma > 30) return true;
+  // Green pen
+  if (g > r + 15 && g > b + 10 && chroma > 30) return true;
+  // Purple
+  if (r > 40 && b > 40 && g < Math.min(r, b) - 10 && chroma > 25) return true;
+  return false;
+}
+
+function estimateThickness(
+  dark: Uint8Array,
+  w: number,
+  h: number,
+  x: number,
+  y: number,
+): number {
+  let left = 0;
+  let right = 0;
+  let up = 0;
+  let down = 0;
+  for (let i = x; i >= 0 && dark[y * w + i]; i--) left++;
+  for (let i = x; i < w && dark[y * w + i]; i++) right++;
+  for (let j = y; j >= 0 && dark[j * w + x]; j--) up++;
+  for (let j = y; j < h && dark[j * w + x]; j++) down++;
+  const horiz = left + right - 1;
+  const vert = up + down - 1;
+  return Math.min(horiz, vert);
+}
+
+function paperFillFromImage(data: ImageData): [number, number, number] {
+  const { data: px } = data;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let n = 0;
+  // Sample bright pixels as paper
+  for (let i = 0; i < px.length; i += 16) {
+    const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+    if (lum > 200) {
+      r += px[i];
+      g += px[i + 1];
+      b += px[i + 2];
+      n++;
+    }
+  }
+  if (n < 50) return [248, 248, 248];
+  return [Math.round(r / n), Math.round(g / n), Math.round(b / n)];
+}
+
+/**
+ * Remove handwritten marks from a document scan.
+ * - color: blue/red/green pen ink
+ * - thin: thin black strokes (pen) while keeping thicker printed text
+ * - both: color + thin
+ */
+export async function removeHandwriting(
+  imageSrc: string,
+  mode: HandwritingMode = "both",
+  aggressiveness = 0.55,
+): Promise<string> {
+  return withCanvas(imageSrc, (ctx, canvas) => {
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const { data, width: w, height: h } = imageData;
+    const fill = paperFillFromImage(imageData);
+    const thinMax = Math.max(2, Math.round(2 + aggressiveness * 4));
+    const darkThresh = Math.round(150 - aggressiveness * 25);
+
+    const removeColor = mode === "color" || mode === "both";
+    const removeThin = mode === "thin" || mode === "both";
+
+    const dark = new Uint8Array(w * h);
+    if (removeThin) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 4;
+          const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+          // Prefer near-gray dark pixels for black pen path
+          const chroma =
+            Math.max(data[i], data[i + 1], data[i + 2]) -
+            Math.min(data[i], data[i + 1], data[i + 2]);
+          if (lum < darkThresh && chroma < 40) dark[y * w + x] = 1;
+        }
+      }
+    }
+
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        let wipe = false;
+
+        if (removeColor && isColorInk(r, g, b)) wipe = true;
+
+        if (!wipe && removeThin && dark[y * w + x]) {
+          const thick = estimateThickness(dark, w, h, x, y);
+          if (thick > 0 && thick <= thinMax) wipe = true;
+        }
+
+        if (wipe) {
+          data[i] = fill[0];
+          data[i + 1] = fill[1];
+          data[i + 2] = fill[2];
+        }
+      }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+  });
+}
+
+/** Brush erase that prefers handwriting-like pixels (color ink or thin dark). */
+export async function handwritingEraseAtPoints(
+  imageSrc: string,
+  points: { x: number; y: number }[],
+  brushSize: number,
+): Promise<string> {
+  return withCanvas(imageSrc, (ctx, canvas) => {
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const { data, width: w, height: h } = imageData;
+    const dark = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        if (lum < 165) dark[y * w + x] = 1;
+      }
+    }
+
+    for (const p of points) {
+      const [pr, pg, pb] = samplePaperColor(imageData, p.x, p.y, brushSize);
+      const r2 = brushSize * brushSize;
+      const minX = Math.max(0, Math.floor(p.x - brushSize));
+      const maxX = Math.min(w - 1, Math.ceil(p.x + brushSize));
+      const minY = Math.max(0, Math.floor(p.y - brushSize));
+      const maxY = Math.min(h - 1, Math.ceil(p.y + brushSize));
+      for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          const dx = x - p.x;
+          const dy = y - p.y;
+          if (dx * dx + dy * dy > r2) continue;
+          const i = (y * w + x) * 4;
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+          const color = isColorInk(r, g, b);
+          const thin =
+            dark[y * w + x] && estimateThickness(dark, w, h, x, y) <= 6;
+          if (color || thin || lum < 140) {
+            data[i] = pr;
+            data[i + 1] = pg;
+            data[i + 2] = pb;
+          }
+        }
+      }
+    }
+    ctx.putImageData(imageData, 0, 0);
+  });
+}
+
 /** Rectangular crop in image pixel coordinates. */
 export async function cropRect(
   imageSrc: string,
