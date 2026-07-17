@@ -48,6 +48,7 @@ export const TOOL_SECTIONS: {
       { id: "handwriting", label: "Remove Handwriting", href: "/tools/remove-handwriting", color: "#dc2626", icon: "✍", status: "ready" },
       { id: "restore", label: "Restore Photo", href: "/tools/restore", color: "#c026d3", icon: "✨", status: "ready" },
       { id: "merge", label: "Merge Files", href: "/tools/merge", color: "#4f46e5", icon: "⧉", status: "ready" },
+      { id: "collage", label: "Collage", href: "/tools/collage", color: "#ea580c", icon: "▦", status: "ready" },
       { id: "extract", label: "Extract Pages", href: "/tools/extract-pages", color: "#0284c7", icon: "▤", status: "ready" },
       { id: "reorder", label: "Reorder Pages", href: "/tools/pick?action=pages", color: "#475569", icon: "↕", status: "ready" },
       { id: "lock", label: "Lock", href: "/tools/lock", color: "#16a34a", icon: "🔒", status: "ready" },

@@ -1887,6 +1887,158 @@ body.app-shell:has(.doc-view) {
   }
 }
 
+/* Collage editor */
+.collage-page {
+  padding-bottom: 5rem;
+}
+
+.collage-upload {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  justify-items: start;
+}
+
+.collage-upload-btn {
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.collage-editor {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.collage-toolbar {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.collage-field select {
+  appearance: none;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 0.55rem 0.75rem;
+  font: inherit;
+  background: #fff;
+}
+
+.collage-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.collage-presets .btn-secondary {
+  padding: 0.45rem 0.7rem;
+  font-size: 0.8rem;
+}
+
+.collage-hint {
+  margin: 0;
+}
+
+.collage-stage-wrap {
+  touch-action: none;
+  background: #e8ecee;
+  border-radius: 14px;
+  padding: 0.75rem;
+  overflow: auto;
+}
+
+.collage-stage {
+  position: relative;
+  width: min(100%, 420px);
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  user-select: none;
+}
+
+.collage-item {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  overflow: visible;
+  cursor: grab;
+  touch-action: none;
+}
+
+.collage-item.is-selected {
+  border-color: #0f766e;
+  z-index: 2;
+}
+
+.collage-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #f8fafc;
+  border-radius: 6px;
+  pointer-events: none;
+  display: block;
+}
+
+.collage-handle {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #0f766e;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  z-index: 3;
+  touch-action: none;
+}
+
+.collage-handle-tl {
+  left: -8px;
+  top: -8px;
+  cursor: nwse-resize;
+}
+
+.collage-handle-tr {
+  right: -8px;
+  top: -8px;
+  cursor: nesw-resize;
+}
+
+.collage-handle-bl {
+  left: -8px;
+  bottom: -8px;
+  cursor: nesw-resize;
+}
+
+.collage-handle-br {
+  right: -8px;
+  bottom: -8px;
+  cursor: nwse-resize;
+}
+
+.collage-adjust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+}
+
+.collage-adjust .btn-secondary,
+.collage-adjust .btn-danger {
+  min-width: 2.6rem;
+  padding: 0.45rem 0.65rem;
+}
+
+.collage-actions {
+  display: flex;
+  gap: 0.65rem;
+  justify-content: center;
+  padding-bottom: 1rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
