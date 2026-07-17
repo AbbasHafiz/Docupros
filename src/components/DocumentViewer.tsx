@@ -139,21 +139,28 @@ export function DocumentViewer({ id }: Props) {
           copies: 1,
           watermark: doc.watermark,
         });
+        if (blob.size < 500) throw new Error("PDF export produced an empty file");
         downloadBlob(
           blob,
           `${doc.title.replace(/\s+/g, "-").toLowerCase()}-id.pdf`,
         );
       } else {
-        const blob = await exportDocumentPdf(
-          doc.title,
-          doc.pages.map((p) => p.imageDataUrl),
-          { watermark: doc.watermark, a4 },
-        );
+        const pages = doc.pages
+          .map((p) => p.imageDataUrl)
+          .filter((src) => Boolean(src));
+        if (!pages.length) throw new Error("No page images to export");
+        const blob = await exportDocumentPdf(doc.title, pages, {
+          watermark: doc.watermark,
+          a4,
+        });
+        if (blob.size < 500) throw new Error("PDF export produced an empty file");
         downloadBlob(
           blob,
           `${doc.title.replace(/\s+/g, "-").toLowerCase()}.pdf`,
         );
       }
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "PDF export failed");
     } finally {
       setBusy(false);
     }

@@ -15,6 +15,7 @@ import {
   loadImage,
   warpPerspective,
 } from "@/lib/imageProcessing";
+import { rotateImage } from "@/lib/editOperations";
 import { saveDocument, getDocument } from "@/lib/storage";
 import { stampTimestamp } from "@/lib/toolsOps";
 import { documentHref } from "@/lib/routes";
@@ -96,6 +97,49 @@ export function ScanFlow({
     } finally {
       setBusy(false);
     }
+  };
+
+  const runAutoCrop = async (src?: string) => {
+    const image = src ?? rawImage;
+    if (!image) return;
+    setBusy(true);
+    try {
+      const img = await loadImage(image);
+      const detected = await detectDocumentQuad(image);
+      const fallback = isId
+        ? defaultIdQuad(img.naturalWidth, img.naturalHeight)
+        : defaultQuad(img.naturalWidth, img.naturalHeight);
+      setQuad(detected ?? fallback);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const rotateCapture = async (degrees: 90 | 270) => {
+    if (!rawImage) return;
+    setBusy(true);
+    try {
+      const rotated = await rotateImage(rawImage, degrees);
+      setRawImage(rotated);
+      const img = await loadImage(rotated);
+      const detected = await detectDocumentQuad(rotated);
+      const fallback = isId
+        ? defaultIdQuad(img.naturalWidth, img.naturalHeight)
+        : defaultQuad(img.naturalWidth, img.naturalHeight);
+      setQuad(detected ?? fallback);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const useFullPage = async () => {
+    if (!rawImage) return;
+    const img = await loadImage(rawImage);
+    setQuad(
+      isId
+        ? defaultIdQuad(img.naturalWidth, img.naturalHeight)
+        : defaultQuad(img.naturalWidth, img.naturalHeight),
+    );
   };
 
   const confirmCrop = async () => {
@@ -311,7 +355,44 @@ export function ScanFlow({
 
       {step === "crop" && rawImage && quad && (
         <div className="step-panel">
+          <p className="hint" style={{ textAlign: "center", marginBottom: "0.5rem" }}>
+            Drag corners to adjust. Use Auto crop or Rotate if needed.
+          </p>
           <CropEditor imageSrc={rawImage} quad={quad} onChange={setQuad} />
+          <div className="crop-tools" role="toolbar" aria-label="Crop tools">
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={busy}
+              onClick={() => void runAutoCrop()}
+            >
+              Auto crop
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={busy}
+              onClick={() => void rotateCapture(270)}
+            >
+              Rotate left
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={busy}
+              onClick={() => void rotateCapture(90)}
+            >
+              Rotate right
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={busy}
+              onClick={() => void useFullPage()}
+            >
+              Full page
+            </button>
+          </div>
           <div className="step-actions">
             <button
               type="button"
