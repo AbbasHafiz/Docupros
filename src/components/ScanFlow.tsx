@@ -83,17 +83,21 @@ export function ScanFlow({
     };
   }, [appendToId]);
 
-  const beginWithImage = async (dataUrl: string) => {
+  const beginWithImage = async (dataUrl: string, liveQuad?: Quad) => {
     if (appendToId && !appendReady) return;
     setBusy(true);
     setRawImage(dataUrl);
     try {
       const img = await loadImage(dataUrl);
-      const detected = await detectDocumentQuad(dataUrl);
       const fallback = isId
         ? defaultIdQuad(img.naturalWidth, img.naturalHeight)
         : defaultQuad(img.naturalWidth, img.naturalHeight);
-      setQuad(detected ?? fallback);
+      if (liveQuad && !isId) {
+        setQuad(liveQuad);
+      } else {
+        const detected = await detectDocumentQuad(dataUrl);
+        setQuad(detected ?? fallback);
+      }
       setStep("crop");
     } finally {
       setBusy(false);
@@ -352,7 +356,7 @@ export function ScanFlow({
             <p className="busy-bar">Loading document…</p>
           )}
           <CameraCapture
-            onCapture={(src) => void beginWithImage(src)}
+            onCapture={(src, liveQuad) => void beginWithImage(src, liveQuad)}
             onUpload={(src) => void beginWithImage(src)}
             guide={isId ? "cnic" : "document"}
             guideLabel={
