@@ -527,6 +527,98 @@ body.app-shell:has(.doc-view) {
   font-size: 1.2rem;
 }
 
+.share-backdrop {
+  place-items: end center;
+  padding: 0;
+}
+
+.share-sheet {
+  border-radius: 20px 20px 0 0;
+  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  max-height: min(88dvh, 640px);
+  overflow: auto;
+}
+
+.share-doc-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.98rem;
+  color: var(--ink);
+}
+
+.share-hint {
+  margin: 0;
+}
+
+.share-error {
+  margin: 0;
+  color: var(--danger, #b91c1c);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.share-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.65rem;
+}
+
+@media (min-width: 520px) {
+  .share-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.share-tile {
+  appearance: none;
+  border: 1px solid #e5e7eb;
+  background: #f8fafb;
+  border-radius: 14px;
+  padding: 0.75rem 0.45rem 0.65rem;
+  display: grid;
+  gap: 0.2rem;
+  justify-items: center;
+  text-align: center;
+  cursor: pointer;
+  color: var(--ink);
+  font: inherit;
+  min-height: 5.5rem;
+}
+
+.share-tile:hover:not(:disabled) {
+  border-color: #99f6e4;
+  background: #f0fdfa;
+}
+
+.share-tile:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.share-tile-icon {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 118, 110, 0.12);
+  color: #0f766e;
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.share-tile-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.share-tile-hint {
+  font-size: 0.68rem;
+  color: var(--muted);
+  line-height: 1.2;
+}
+
 .sign-canvas {
   width: 100%;
   border-radius: 12px;

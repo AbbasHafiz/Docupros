@@ -42,8 +42,8 @@ import {
   smartEraseAtPoints,
   type HandwritingMode,
 } from "@/lib/editOperations";
-import { downloadBlob, exportDocumentPdf } from "@/lib/pdf";
 import { documentHref } from "@/lib/routes";
+import { ShareSheet } from "./ShareSheet";
 
 type Props = {
   documentId: string;
@@ -115,6 +115,7 @@ export function PageEditor({ documentId, pageId }: Props) {
   const [signature, setSignature] = useState<string | null>(null);
   const [cropRaw, setCropRaw] = useState<string | null>(null);
   const [cropQuad, setCropQuad] = useState<Quad | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
   const [previews, setPreviews] = useState<Partial<Record<ScanFilter, string>>>(
     {},
   );
@@ -747,49 +748,8 @@ export function PageEditor({ documentId, pageId }: Props) {
     }
   };
 
-  const shareDoc = async () => {
-    if (!doc) return;
-    setBusy(true);
-    try {
-      let blob: Blob;
-      let filename: string;
-      if (doc.kind === "id_card") {
-        const front =
-          doc.pages.find((p) => p.side === "front") ?? doc.pages[0];
-        const back = doc.pages.find((p) => p.side === "back");
-        if (!front) throw new Error("No CNIC front page");
-        const { exportCnicSizedPdf, cnicFilename } = await import("@/lib/cnic");
-        blob = await exportCnicSizedPdf({
-          front: front.imageDataUrl,
-          back: back?.imageDataUrl,
-          title: doc.title,
-          watermark: doc.watermark,
-        });
-        filename = cnicFilename(doc.title);
-      } else {
-        blob = await exportDocumentPdf(
-          doc.title,
-          doc.pages.map((p) => p.imageDataUrl),
-          { a4: true, watermark: doc.watermark },
-        );
-        filename = `${doc.title.replace(/\s+/g, "-").toLowerCase()}.pdf`;
-      }
-      const file = new File([blob], filename, { type: "application/pdf" });
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({
-          title: doc.title,
-          text: doc.kind === "id_card" ? "Pakistan CNIC" : undefined,
-          files: [file],
-        });
-      } else {
-        downloadBlob(blob, file.name);
-        setStatus("PDF downloaded to share");
-      }
-    } catch {
-      setStatus("Share cancelled");
-    } finally {
-      setBusy(false);
-    }
+  const shareDoc = () => {
+    setShareOpen(true);
   };
 
   const deleteCurrentPage = async () => {
@@ -891,7 +851,7 @@ export function PageEditor({ documentId, pageId }: Props) {
           <button
             type="button"
             className="text-btn"
-            onClick={() => void shareDoc()}
+            onClick={() => shareDoc()}
             disabled={busy}
           >
             Share
@@ -1448,6 +1408,18 @@ export function PageEditor({ documentId, pageId }: Props) {
 
       {placeMode === "sign" && (
         <div className="busy-bar">Tap page to place signature</div>
+      )}
+
+      {doc && (
+        <ShareSheet
+          doc={doc}
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
+          onStatus={(msg) => {
+            setStatus(msg);
+            if (msg) window.setTimeout(() => setStatus(null), 2200);
+          }}
+        />
       )}
     </div>
   );
