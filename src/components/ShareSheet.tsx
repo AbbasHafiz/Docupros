@@ -16,14 +16,21 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onStatus?: (message: string | null) => void;
+  onOpenColleague?: () => void;
 };
 
 const PLATFORMS: {
-  id: SharePlatform;
+  id: SharePlatform | "colleague";
   label: string;
   icon: string;
   hint: string;
 }[] = [
+  {
+    id: "colleague",
+    label: "Colleague",
+    icon: "CO",
+    hint: "Saved coworkers",
+  },
   {
     id: "system",
     label: "More apps",
@@ -68,7 +75,13 @@ const PLATFORMS: {
   },
 ];
 
-export function ShareSheet({ doc, open, onClose, onStatus }: Props) {
+export function ShareSheet({
+  doc,
+  open,
+  onClose,
+  onStatus,
+  onOpenColleague,
+}: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [prepared, setPrepared] = useState<PreparedShare | null>(null);
@@ -108,7 +121,11 @@ export function ShareSheet({ doc, open, onClose, onStatus }: Props) {
 
   if (!open) return null;
 
-  const runShare = async (platform: SharePlatform) => {
+  const runShare = async (platform: SharePlatform | "colleague") => {
+    if (platform === "colleague") {
+      onOpenColleague?.();
+      return;
+    }
     setError(null);
     setBusy(true);
     onStatus?.("Preparing…");
@@ -180,14 +197,22 @@ export function ShareSheet({ doc, open, onClose, onStatus }: Props) {
         {error && <p className="share-error">{error}</p>}
 
         <div className="share-grid" role="list">
-          {PLATFORMS.filter((p) => p.id !== "system" || hasNativeShare).map(
-            (p) => (
+          {PLATFORMS.filter(
+            (p) =>
+              (p.id !== "system" || hasNativeShare) &&
+              (p.id !== "colleague" || Boolean(onOpenColleague)),
+          ).map((p) => (
               <button
                 key={p.id}
                 type="button"
                 className="share-tile"
                 role="listitem"
-                disabled={busy || (!prepared && p.id !== "image")}
+                disabled={
+                  busy ||
+                  (p.id !== "image" &&
+                    p.id !== "colleague" &&
+                    !prepared)
+                }
                 onClick={() => void runShare(p.id)}
               >
                 <span className="share-tile-icon" aria-hidden>

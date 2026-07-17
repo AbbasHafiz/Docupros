@@ -23,6 +23,7 @@ import {
   pdfBase64ToImageDataUrls,
 } from "@/lib/pdfConvert";
 import { ShareSheet } from "./ShareSheet";
+import { ColleagueSheet } from "./ColleagueSheet";
 
 type Props = { id: string };
 
@@ -47,6 +48,7 @@ export function DocumentViewer({ id }: Props) {
   const [busy, setBusy] = useState(false);
   const [manage, setManage] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [colleagueOpen, setColleagueOpen] = useState(false);
   const [renderStatus, setRenderStatus] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const rerenderedRef = useRef<string | null>(null);
@@ -560,6 +562,14 @@ export function DocumentViewer({ id }: Props) {
         >
           Share
         </button>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => setColleagueOpen(true)}
+          disabled={busy}
+        >
+          Colleague
+        </button>
         {isId && (
           <button
             type="button"
@@ -617,6 +627,23 @@ export function DocumentViewer({ id }: Props) {
         doc={doc}
         open={shareOpen}
         onClose={() => setShareOpen(false)}
+        onOpenColleague={() => {
+          setShareOpen(false);
+          setColleagueOpen(true);
+        }}
+        onStatus={(msg) => {
+          setRenderStatus(msg);
+          if (msg) {
+            window.setTimeout(() => setRenderStatus(null), 2500);
+          }
+        }}
+      />
+
+      <ColleagueSheet
+        doc={doc}
+        open={colleagueOpen}
+        onClose={() => setColleagueOpen(false)}
+        onDocUpdate={(updated) => setDoc(updated)}
         onStatus={(msg) => {
           setRenderStatus(msg);
           if (msg) {
