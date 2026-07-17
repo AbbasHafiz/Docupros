@@ -1642,36 +1642,95 @@ body.app-shell:has(.doc-view) {
   position: absolute;
   z-index: 5;
   margin: 0;
-  padding: 0.15rem 0.35rem;
+  min-width: 2.5rem;
+  padding: 0;
   font-family: Arial, Helvetica, sans-serif;
   font-weight: 600;
   line-height: 1.15;
   white-space: pre;
-  cursor: grab;
   touch-action: none;
   user-select: none;
-  border: 1.5px dashed rgba(15, 118, 110, 0.85);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.55);
-  box-shadow: 0 2px 10px rgba(11, 28, 36, 0.18);
+  border: 1.5px solid rgba(15, 118, 110, 0.9);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 2px 12px rgba(11, 28, 36, 0.2);
   transform: translateZ(0);
 }
 
-.floating-text:active {
+.floating-text-move {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 1.35rem;
+  border: 0;
+  border-bottom: 1px solid rgba(15, 118, 110, 0.25);
+  border-radius: 7px 7px 0 0;
+  background: rgba(15, 118, 110, 0.12);
+  color: #0f766e;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none;
+  padding: 0.15rem;
+}
+
+.floating-text-move:active {
   cursor: grabbing;
 }
 
-.floating-text-handle {
-  position: absolute;
-  right: -7px;
-  bottom: -7px;
-  width: 14px;
-  height: 14px;
+.floating-text-body {
+  padding: 0.2rem 0.45rem 0.15rem;
+  cursor: grab;
+  touch-action: none;
+}
+
+.floating-text-tools {
+  display: flex;
+  gap: 0.25rem;
+  justify-content: center;
+  padding: 0.2rem 0.35rem 0.35rem;
+}
+
+.floating-text-btn {
+  appearance: none;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0b1c24;
   border-radius: 999px;
-  background: #0f766e;
+  min-width: 2rem;
+  height: 1.7rem;
+  padding: 0 0.45rem;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 750;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.floating-text-btn.is-apply {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #fff;
+}
+
+.floating-text-resize {
+  appearance: none;
+  position: absolute;
+  right: -10px;
+  bottom: -10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
   border: 2px solid #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-  pointer-events: none;
+  background:
+    linear-gradient(135deg, transparent 46%, #0f766e 46%, #0f766e 54%, transparent 54%),
+    #14b8a6;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
+  cursor: nwse-resize;
+  touch-action: none;
+  padding: 0;
 }
 
 .editor-canvas.tool-erase {
