@@ -1628,6 +1628,50 @@ body.app-shell:has(.doc-view) {
   box-shadow: var(--shadow);
   background: #0b1c24;
   touch-action: none;
+  display: block;
+}
+
+.editor-canvas-stack {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin: 0.5rem auto;
+}
+
+.floating-text {
+  position: absolute;
+  z-index: 5;
+  margin: 0;
+  padding: 0.15rem 0.35rem;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: pre;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  border: 1.5px dashed rgba(15, 118, 110, 0.85);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 2px 10px rgba(11, 28, 36, 0.18);
+  transform: translateZ(0);
+}
+
+.floating-text:active {
+  cursor: grabbing;
+}
+
+.floating-text-handle {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #0f766e;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
 }
 
 .editor-canvas.tool-erase {

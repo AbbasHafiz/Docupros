@@ -106,7 +106,15 @@ export function PageEditor({ documentId, pageId }: Props) {
   const [ocrProgress, setOcrProgress] = useState(0);
   const [addText, setAddText] = useState("");
   const [addFontSize, setAddFontSize] = useState(28);
+  const [addColor, setAddColor] = useState("#111111");
   const [placeMode, setPlaceMode] = useState<"text" | "sign" | null>(null);
+  const [floatingText, setFloatingText] = useState<{
+    text: string;
+    x: number;
+    y: number;
+    fontSize: number;
+    color: string;
+  } | null>(null);
   const [scale, setScale] = useState(1);
   const [zoom, setZoom] = useState(1);
   const [inkColor, setInkColor] = useState("#e11d48");
@@ -120,6 +128,16 @@ export function PageEditor({ documentId, pageId }: Props) {
     {},
   );
   const strokePoints = useRef<{ x: number; y: number }[]>([]);
+  const textDragRef = useRef<{
+    ox: number;
+    oy: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
+  const textPinchRef = useRef<{
+    startDist: number;
+    startSize: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const naturalSizeRef = useRef({ w: 1, h: 1 });
   const fitScaleRef = useRef(1);
@@ -152,6 +170,7 @@ export function PageEditor({ documentId, pageId }: Props) {
     imageTool === "addText" ||
     placeMode === "sign" ||
     placeMode === "text" ||
+    Boolean(floatingText) ||
     tab === "markup";
 
   useEffect(() => {
@@ -397,8 +416,95 @@ export function PageEditor({ documentId, pageId }: Props) {
     };
   };
 
+  const applyFloatingText = async () => {
+    if (!page || !floatingText?.text.trim()) return;
+    setBusy(true);
+    try {
+      const next = await drawFreeText(
+        page.imageDataUrl,
+        floatingText.text,
+        floatingText.x,
+        floatingText.y,
+        floatingText.fontSize,
+        floatingText.color,
+      );
+      await persistPage(next);
+      setFloatingText(null);
+      setStatus("Text added");
+      window.setTimeout(() => setStatus(null), 1600);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancelFloatingText = () => {
+    setFloatingText(null);
+    setStatus(null);
+  };
+
+  const onFloatingTextPointerDown = (e: React.PointerEvent) => {
+    if (!floatingText) return;
+    e.stopPropagation();
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    const pt = pointerToImage(e);
+    textDragRef.current = {
+      ox: pt.x - floatingText.x,
+      oy: pt.y - floatingText.y,
+      startX: floatingText.x,
+      startY: floatingText.y,
+    };
+  };
+
+  const onFloatingTextPointerMove = (e: React.PointerEvent) => {
+    if (!floatingText || !textDragRef.current) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const pt = pointerToImage(e);
+    setFloatingText({
+      ...floatingText,
+      x: pt.x - textDragRef.current.ox,
+      y: pt.y - textDragRef.current.oy,
+    });
+  };
+
+  const onFloatingTextPointerUp = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    textDragRef.current = null;
+  };
+
+  const onFloatingTextTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && floatingText) {
+      textDragRef.current = null;
+      const [a, b] = [e.touches[0], e.touches[1]];
+      textPinchRef.current = {
+        startDist: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+        startSize: floatingText.fontSize,
+      };
+    }
+  };
+
+  const onFloatingTextTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && textPinchRef.current && floatingText) {
+      e.preventDefault();
+      const [a, b] = [e.touches[0], e.touches[1]];
+      const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+      const ratio = dist / Math.max(1, textPinchRef.current.startDist);
+      const next = Math.round(
+        Math.min(120, Math.max(10, textPinchRef.current.startSize * ratio)),
+      );
+      setFloatingText({ ...floatingText, fontSize: next });
+      setAddFontSize(next);
+    }
+  };
+
+  const onFloatingTextTouchEnd = () => {
+    textPinchRef.current = null;
+  };
+
   const selectTool = async (tool: ImageTool) => {
     setPlaceMode(null);
+    setFloatingText(null);
     setImageTool(tool);
     setTab("images");
 
@@ -491,23 +597,16 @@ export function PageEditor({ documentId, pageId }: Props) {
     const pt = pointerToImage(e);
 
     if (placeMode === "text" && addText.trim()) {
-      void (async () => {
-        setBusy(true);
-        try {
-          const next = await drawFreeText(
-            page.imageDataUrl,
-            addText,
-            pt.x,
-            pt.y,
-            addFontSize,
-          );
-          setPlaceMode(null);
-          await persistPage(next);
-          setStatus("Text added");
-        } finally {
-          setBusy(false);
-        }
-      })();
+      // Place a floating text box first — drag / pinch to adjust, then Apply
+      setFloatingText({
+        text: addText.trim(),
+        x: pt.x,
+        y: pt.y,
+        fontSize: addFontSize,
+        color: addColor,
+      });
+      setPlaceMode(null);
+      setStatus("Drag to move · pinch to resize · tap Apply");
       return;
     }
 
@@ -784,6 +883,8 @@ export function PageEditor({ documentId, pageId }: Props) {
     setSelectedWordId(null);
     setImageTool(null);
     setCropRaw(null);
+    setFloatingText(null);
+    setPlaceMode(null);
     setZoom(1);
     clearHistory();
   };
@@ -948,6 +1049,7 @@ export function PageEditor({ documentId, pageId }: Props) {
             className={`cs-stage ${zoom > 1 ? "is-zoomed" : ""}`}
             ref={stageRef}
             onTouchStart={(e) => {
+              if (floatingText) return;
               if (e.touches.length === 2) {
                 const [a, b] = [e.touches[0], e.touches[1]];
                 const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
@@ -955,6 +1057,7 @@ export function PageEditor({ documentId, pageId }: Props) {
               }
             }}
             onTouchMove={(e) => {
+              if (floatingText) return;
               if (e.touches.length === 2 && pinchRef.current) {
                 e.preventDefault();
                 const [a, b] = [e.touches[0], e.touches[1]];
@@ -975,27 +1078,50 @@ export function PageEditor({ documentId, pageId }: Props) {
             >
               🗑
             </button>
-            <canvas
-              ref={canvasRef}
-              className={`editor-canvas ${
-                imageTool === "smartErase" ||
-                imageTool === "removeHandwriting" ||
-                placeMode ||
-                tab === "markup"
-                  ? "tool-erase"
-                  : ""
-              } ${imageTool === "editText" ? "tool-text" : ""} ${
-                placeMode ? "place-mode" : ""
-              }`}
-              onPointerDown={onPointerDown}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-              onPointerCancel={onPointerUp}
-              onDoubleClick={() => {
-                if (zoom < 2) setZoomClamped(2.25);
-                else zoomToFit();
-              }}
-            />
+            <div className="editor-canvas-stack">
+              <canvas
+                ref={canvasRef}
+                className={`editor-canvas ${
+                  imageTool === "smartErase" ||
+                  imageTool === "removeHandwriting" ||
+                  placeMode ||
+                  tab === "markup"
+                    ? "tool-erase"
+                    : ""
+                } ${imageTool === "editText" ? "tool-text" : ""} ${
+                  placeMode ? "place-mode" : ""
+                }`}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerCancel={onPointerUp}
+                onDoubleClick={() => {
+                  if (zoom < 2) setZoomClamped(2.25);
+                  else zoomToFit();
+                }}
+              />
+              {floatingText && (
+                <div
+                  className="floating-text"
+                  style={{
+                    left: floatingText.x * scale,
+                    top: floatingText.y * scale,
+                    fontSize: floatingText.fontSize * scale,
+                    color: floatingText.color,
+                  }}
+                  onPointerDown={onFloatingTextPointerDown}
+                  onPointerMove={onFloatingTextPointerMove}
+                  onPointerUp={onFloatingTextPointerUp}
+                  onPointerCancel={onFloatingTextPointerUp}
+                  onTouchStart={onFloatingTextTouchStart}
+                  onTouchMove={onFloatingTextTouchMove}
+                  onTouchEnd={onFloatingTextTouchEnd}
+                >
+                  {floatingText.text}
+                  <span className="floating-text-handle" aria-hidden />
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="cs-pager">
@@ -1229,32 +1355,91 @@ export function PageEditor({ documentId, pageId }: Props) {
       {!cropRaw && imageTool === "addText" && (
         <div className="cs-sheet">
           <p className="panel-title">Add Text</p>
+          <p className="hint">
+            Place text, then drag with your finger to move and pinch to change
+            size before applying.
+          </p>
           <label className="field">
             <span>Text</span>
             <input
               value={addText}
-              onChange={(e) => setAddText(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setAddText(v);
+                if (floatingText) {
+                  setFloatingText({ ...floatingText, text: v });
+                }
+              }}
               placeholder="Type text"
             />
           </label>
           <label className="slider-row">
-            <span>Size {addFontSize}</span>
+            <span>Size {floatingText?.fontSize ?? addFontSize}</span>
             <input
               type="range"
               min={12}
-              max={72}
-              value={addFontSize}
-              onChange={(e) => setAddFontSize(Number(e.target.value))}
+              max={96}
+              value={floatingText?.fontSize ?? addFontSize}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                setAddFontSize(n);
+                if (floatingText) {
+                  setFloatingText({ ...floatingText, fontSize: n });
+                }
+              }}
             />
           </label>
-          <button
-            type="button"
-            className={`btn-secondary ${placeMode === "text" ? "is-active-btn" : ""}`}
-            disabled={!addText.trim()}
-            onClick={() => setPlaceMode((m) => (m === "text" ? null : "text"))}
-          >
-            {placeMode === "text" ? "Tap page to place…" : "Place on page"}
-          </button>
+          <div className="row-actions">
+            {["#111111", "#e11d48", "#2563eb", "#16a34a", "#ca8a04"].map(
+              (c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className={`swatch ${
+                    (floatingText?.color ?? addColor) === c ? "is-active" : ""
+                  }`}
+                  style={{ background: c }}
+                  onClick={() => {
+                    setAddColor(c);
+                    if (floatingText) {
+                      setFloatingText({ ...floatingText, color: c });
+                    }
+                  }}
+                />
+              ),
+            )}
+          </div>
+          {!floatingText ? (
+            <button
+              type="button"
+              className={`btn-secondary ${placeMode === "text" ? "is-active-btn" : ""}`}
+              disabled={!addText.trim()}
+              onClick={() =>
+                setPlaceMode((m) => (m === "text" ? null : "text"))
+              }
+            >
+              {placeMode === "text" ? "Tap page to place…" : "Place on page"}
+            </button>
+          ) : (
+            <div className="row-actions" style={{ marginTop: "0.35rem" }}>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={busy || !floatingText.text.trim()}
+                onClick={() => void applyFloatingText()}
+              >
+                Apply text
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={busy}
+                onClick={cancelFloatingText}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
       )}
 
