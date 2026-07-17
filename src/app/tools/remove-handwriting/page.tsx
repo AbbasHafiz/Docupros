@@ -10,6 +10,7 @@ import {
 } from "@/lib/editOperations";
 import { saveDocument } from "@/lib/storage";
 import type { DocumentRecord } from "@/lib/types";
+import { documentHref } from "@/lib/routes";
 
 export default function RemoveHandwritingPage() {
   const router = useRouter();
@@ -180,7 +181,7 @@ export default function RemoveHandwritingPage() {
               type="button"
               className="btn-primary"
               onClick={() =>
-                startTransition(() => router.push(`/document/${doc.id}/edit`))
+                startTransition(() => router.push(documentHref(doc.id, "edit")))
               }
             >
               Fine-tune with brush

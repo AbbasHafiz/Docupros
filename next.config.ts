@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Allow large in-memory document images during local scanning workflows.
+  // Static export so the app can be hosted on any free CDN (ZeroDeploy, etc.).
+  output: "export",
+  images: { unoptimized: true },
   experimental: {
     optimizePackageImports: ["jspdf"],
   },

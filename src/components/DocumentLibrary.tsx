@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { DocumentRecord } from "@/lib/types";
 import { listDocuments, deleteDocument } from "@/lib/storage";
+import { documentHref } from "@/lib/routes";
 
 export function DocumentLibrary() {
   const [docs, setDocs] = useState<DocumentRecord[] | null>(null);
@@ -52,7 +53,7 @@ export function DocumentLibrary() {
       <div className="library-grid">
         {docs.map((doc) => (
           <article key={doc.id} className="doc-item">
-            <Link href={`/document/${doc.id}`} className="doc-link">
+            <Link href={documentHref(doc.id)} className="doc-link">
               <div className="doc-thumb">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img

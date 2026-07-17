@@ -11,6 +11,7 @@ import { extractTextFromImages } from "@/lib/ocr";
 import { rebuildDocumentText } from "@/lib/editOperations";
 import { exportIdCardPdf, printIdCard } from "@/lib/idPrint";
 import { hashPassword } from "@/lib/toolsOps";
+import { documentHref } from "@/lib/routes";
 
 type Props = { id: string };
 
@@ -323,7 +324,7 @@ export function DocumentViewer({ id }: Props) {
 
       <div className="doc-toolbar">
         <Link
-          href={`/document/${doc.id}/edit?page=${activePage?.id ?? ""}`}
+          href={documentHref(doc.id, "edit", activePage?.id ?? "")}
           className="btn-primary"
         >
           Edit page
@@ -331,8 +332,8 @@ export function DocumentViewer({ id }: Props) {
         <Link
           href={
             doc.kind === "pdf_form" && doc.sourcePdfBase64
-              ? `/document/${doc.id}/pdf-form`
-              : `/document/${doc.id}/form`
+              ? documentHref(doc.id, "pdf-form")
+              : documentHref(doc.id, "form")
           }
           className="btn-secondary"
         >
@@ -480,7 +481,7 @@ export function DocumentViewer({ id }: Props) {
                   Save text changes
                 </button>
                 <Link
-                  href={`/document/${doc.id}/edit?page=${activePage?.id ?? ""}`}
+                  href={documentHref(doc.id, "edit", activePage?.id ?? "")}
                   className="btn-secondary"
                 >
                   Change text on image

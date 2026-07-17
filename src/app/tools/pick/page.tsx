@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import { DocPicker } from "@/components/DocPicker";
 import type { DocumentRecord } from "@/lib/types";
+import { documentHref } from "@/lib/routes";
 
 const HINTS: Record<string, string> = {
   sign: "Open a document, then use Edit → Sign.",
@@ -25,10 +26,10 @@ function PickInner() {
   const go = (docs: DocumentRecord[]) => {
     const doc = docs[0];
     if (!doc) return;
-    if (action === "form") router.push(`/document/${doc.id}/form`);
+    if (action === "form") router.push(documentHref(doc.id, "form"));
     else if (action === "sign" || action === "erase")
-      router.push(`/document/${doc.id}/edit`);
-    else router.push(`/document/${doc.id}`);
+      router.push(documentHref(doc.id, "edit"));
+    else router.push(documentHref(doc.id));
   };
 
   return (

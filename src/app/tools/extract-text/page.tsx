@@ -6,6 +6,7 @@ import { DocPicker } from "@/components/DocPicker";
 import { extractTextFromImages } from "@/lib/ocr";
 import { saveDocument } from "@/lib/storage";
 import type { DocumentRecord } from "@/lib/types";
+import { documentHref } from "@/lib/routes";
 
 export default function ExtractTextPage() {
   const [busy, setBusy] = useState(false);
@@ -63,7 +64,7 @@ export default function ExtractTextPage() {
               Copy
             </button>
             {docId && (
-              <a className="btn-primary" href={`/document/${docId}`}>
+              <a className="btn-primary" href={documentHref(docId)}>
                 Open document
               </a>
             )}

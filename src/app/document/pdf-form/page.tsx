@@ -1,17 +1,18 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { Suspense, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import { getDocument, saveDocument } from "@/lib/storage";
 import { downloadBlob } from "@/lib/pdf";
 import { fillImportedPdfForm } from "@/lib/formPdf";
+import { documentHref } from "@/lib/routes";
 import type { DocumentRecord } from "@/lib/types";
 
-export default function PdfFormFillPage() {
-  const params = useParams<{ id: string }>();
-  const id = params.id;
+function PdfFormInner() {
+  const search = useSearchParams();
+  const id = search.get("id") ?? "";
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [doc, setDoc] = useState<DocumentRecord | null>(null);
@@ -20,6 +21,7 @@ export default function PdfFormFillPage() {
   const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!id) return;
     let cancelled = false;
     void getDocument(id).then((d) => {
       if (cancelled) return;
@@ -34,6 +36,17 @@ export default function PdfFormFillPage() {
       cancelled = true;
     };
   }, [id]);
+
+  if (!id) {
+    return (
+      <div className="center-pad">
+        <p className="muted">Missing document id.</p>
+        <Link href="/files" className="btn-primary">
+          Files
+        </Link>
+      </div>
+    );
+  }
 
   if (!doc) {
     return (
@@ -60,7 +73,7 @@ export default function PdfFormFillPage() {
 
   const exportFilled = async () => {
     if (!doc.sourcePdfBase64) {
-      startTransition(() => router.push(`/document/${doc.id}/form`));
+      startTransition(() => router.push(documentHref(doc.id, "form")));
       return;
     }
     setBusy(true);
@@ -81,7 +94,7 @@ export default function PdfFormFillPage() {
 
   return (
     <div className="app-shell">
-      <AppHeader title={doc.title} backHref={`/document/${doc.id}`} />
+      <AppHeader title={doc.title} backHref={documentHref(doc.id)} />
       <main className="home" style={{ paddingBottom: "2rem" }}>
         <p className="hero-copy">Fill PDF form fields, then export.</p>
         {status && <p className="busy-bar">{status}</p>}
@@ -134,11 +147,19 @@ export default function PdfFormFillPage() {
           >
             Save values
           </button>
-          <Link href={`/document/${doc.id}/form`} className="btn-secondary">
+          <Link href={documentHref(doc.id, "form")} className="btn-secondary">
             Visual form editor
           </Link>
         </div>
       </main>
     </div>
+  );
+}
+
+export default function PdfFormFillPage() {
+  return (
+    <Suspense fallback={<div className="center-pad muted">Opening…</div>}>
+      <PdfFormInner />
+    </Suspense>
   );
 }

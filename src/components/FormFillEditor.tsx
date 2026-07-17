@@ -10,6 +10,7 @@ import { getDocument, saveDocument } from "@/lib/storage";
 import { loadImage } from "@/lib/imageProcessing";
 import { downloadBlob } from "@/lib/pdf";
 import { exportFillablePdf } from "@/lib/formPdf";
+import { documentHref } from "@/lib/routes";
 
 type Props = {
   documentId: string;
@@ -209,7 +210,7 @@ export function FormFillEditor({ documentId }: Props) {
     return (
       <div className="center-pad">
         <p className="muted">No pages to fill.</p>
-        <Link href={`/document/${doc.id}`} className="btn-primary">
+        <Link href={documentHref(doc.id)} className="btn-primary">
           Back
         </Link>
       </div>
@@ -223,7 +224,7 @@ export function FormFillEditor({ documentId }: Props) {
           type="button"
           className="cs-icon-btn"
           aria-label="Close"
-          onClick={() => router.push(`/document/${doc.id}`)}
+          onClick={() => router.push(documentHref(doc.id))}
         >
           ✕
         </button>
@@ -249,7 +250,7 @@ export function FormFillEditor({ documentId }: Props) {
         <button
           type="button"
           className="btn-done"
-          onClick={() => router.push(`/document/${doc.id}`)}
+          onClick={() => router.push(documentHref(doc.id))}
         >
           Done
         </button>

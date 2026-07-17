@@ -7,6 +7,7 @@ import { DocPicker } from "@/components/DocPicker";
 import { saveDocument } from "@/lib/storage";
 import { extractPages } from "@/lib/toolsOps";
 import type { DocumentRecord } from "@/lib/types";
+import { documentHref } from "@/lib/routes";
 
 export default function ExtractPagesPage() {
   const router = useRouter();
@@ -26,7 +27,7 @@ export default function ExtractPagesPage() {
         `${doc.title} (extracted)`,
       );
       await saveDocument(created);
-      startTransition(() => router.push(`/document/${created.id}`));
+      startTransition(() => router.push(documentHref(created.id)));
     } finally {
       setBusy(false);
     }

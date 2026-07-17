@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { createId } from "@/lib/id";
 import { saveDocument } from "@/lib/storage";
 import type { DocumentRecord, ScanPage } from "@/lib/types";
+import { documentHref } from "@/lib/routes";
 
 function readFile(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -53,7 +54,7 @@ export default function ImportImagesPage() {
         kind: "document",
       };
       await saveDocument(doc);
-      startTransition(() => router.push(`/document/${doc.id}`));
+      startTransition(() => router.push(documentHref(doc.id)));
     } finally {
       setBusy(false);
     }

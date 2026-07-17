@@ -43,6 +43,7 @@ import {
   type HandwritingMode,
 } from "@/lib/editOperations";
 import { downloadBlob, exportDocumentPdf } from "@/lib/pdf";
+import { documentHref } from "@/lib/routes";
 
 type Props = {
   documentId: string;
@@ -615,7 +616,7 @@ export function PageEditor({ documentId, pageId }: Props) {
     return (
       <div className="center-pad">
         <p className="muted">No pages.</p>
-        <Link href={`/document/${doc.id}`} className="btn-primary">
+        <Link href={documentHref(doc.id)} className="btn-primary">
           Back
         </Link>
       </div>
@@ -629,7 +630,7 @@ export function PageEditor({ documentId, pageId }: Props) {
           type="button"
           className="cs-icon-btn"
           aria-label="Close"
-          onClick={() => router.push(`/document/${doc.id}`)}
+          onClick={() => router.push(documentHref(doc.id))}
         >
           ✕
         </button>
@@ -645,7 +646,7 @@ export function PageEditor({ documentId, pageId }: Props) {
           <button
             type="button"
             className="btn-done"
-            onClick={() => router.push(`/document/${doc.id}`)}
+            onClick={() => router.push(documentHref(doc.id))}
           >
             Done
           </button>

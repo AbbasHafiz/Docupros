@@ -7,6 +7,7 @@ import { DocPicker } from "@/components/DocPicker";
 import { saveDocument } from "@/lib/storage";
 import { restorePhoto } from "@/lib/toolsOps";
 import type { DocumentRecord } from "@/lib/types";
+import { documentHref } from "@/lib/routes";
 
 export default function RestorePage() {
   const router = useRouter();
@@ -35,7 +36,7 @@ export default function RestorePage() {
         updatedAt: Date.now(),
       };
       await saveDocument(updated);
-      startTransition(() => router.push(`/document/${doc.id}`));
+      startTransition(() => router.push(documentHref(doc.id)));
     } finally {
       setBusy(false);
     }

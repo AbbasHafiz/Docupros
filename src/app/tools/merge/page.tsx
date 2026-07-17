@@ -7,6 +7,7 @@ import { DocPicker } from "@/components/DocPicker";
 import { saveDocument } from "@/lib/storage";
 import { mergeDocuments } from "@/lib/toolsOps";
 import type { DocumentRecord } from "@/lib/types";
+import { documentHref } from "@/lib/routes";
 
 export default function MergePage() {
   const router = useRouter();
@@ -23,7 +24,7 @@ export default function MergePage() {
     try {
       const merged = await mergeDocuments(docs, title.trim() || "Merged document");
       await saveDocument(merged);
-      startTransition(() => router.push(`/document/${merged.id}`));
+      startTransition(() => router.push(documentHref(merged.id)));
     } finally {
       setBusy(false);
     }

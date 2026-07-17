@@ -17,6 +17,7 @@ import {
 } from "@/lib/imageProcessing";
 import { saveDocument, getDocument } from "@/lib/storage";
 import { stampTimestamp } from "@/lib/toolsOps";
+import { documentHref } from "@/lib/routes";
 import {
   SCAN_FILTERS,
   type DocumentRecord,
@@ -179,7 +180,7 @@ export function ScanFlow({
           thumbnail: pages[0]?.imageDataUrl,
         };
         await saveDocument(updated);
-        startTransition(() => router.push(`/document/${existing.id}`));
+        startTransition(() => router.push(documentHref(existing.id)));
       } else {
         const id = createId();
         const doc: DocumentRecord = {
@@ -194,7 +195,7 @@ export function ScanFlow({
           thumbnail: pages[0]?.imageDataUrl,
         };
         await saveDocument(doc);
-        startTransition(() => router.push(`/document/${id}`));
+        startTransition(() => router.push(documentHref(id)));
       }
     } finally {
       setBusy(false);

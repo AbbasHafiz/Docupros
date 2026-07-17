@@ -12,6 +12,7 @@ import {
 } from "@/lib/formPdf";
 import { downloadBlob } from "@/lib/pdf";
 import type { DocumentRecord, FormField } from "@/lib/types";
+import { documentHref } from "@/lib/routes";
 
 export default function ImportPdfFormPage() {
   const router = useRouter();
@@ -131,7 +132,7 @@ export default function ImportPdfFormPage() {
         thumbnail: thumb,
       };
       await saveDocument(doc);
-      startTransition(() => router.push(`/document/${id}/pdf-form`));
+      startTransition(() => router.push(documentHref(id, "pdf-form")));
     } finally {
       setBusy(false);
     }
