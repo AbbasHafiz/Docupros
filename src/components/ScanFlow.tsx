@@ -13,6 +13,7 @@ import {
   defaultQuad,
   detectDocumentQuadDetailed,
   loadImage,
+  outputSizeFromQuad,
   tightQuad,
   warpPerspective,
 } from "@/lib/imageProcessing";
@@ -66,6 +67,7 @@ export function ScanFlow({
   const [busy, setBusy] = useState(false);
   const [existing, setExisting] = useState<DocumentRecord | null>(null);
   const [appendReady, setAppendReady] = useState(!appendToId);
+  const [fromGallery, setFromGallery] = useState(false);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -84,45 +86,59 @@ export function ScanFlow({
     };
   }, [appendToId]);
 
+  const goToEnhance = async (sourceImage: string) => {
+    let warped = sourceImage;
+    if (isId) {
+      warped = await normalizeToCnicAspect(sourceImage);
+    }
+    setCropped(warped);
+    const next: Partial<Record<ScanFilter, string>> = { original: warped };
+    await Promise.all(
+      SCAN_FILTERS.filter((f) => f.id !== "original").map(async (f) => {
+        next[f.id] = await applyFilter(warped, f.id);
+      }),
+    );
+    setPreviews(next);
+    setFilter(defaultFilter);
+    setStep("enhance");
+  };
+
   const beginWithImage = async (
     dataUrl: string,
     liveQuad?: Quad,
-    options?: { autoCrop?: boolean },
+    options?: { fromGallery?: boolean },
   ) => {
     if (appendToId && !appendReady) return;
     setBusy(true);
     setRawImage(dataUrl);
+    setFromGallery(Boolean(options?.fromGallery));
     try {
       const img = await loadImage(dataUrl);
       const fallback = isId
         ? defaultIdQuad(img.naturalWidth, img.naturalHeight)
         : defaultQuad(img.naturalWidth, img.naturalHeight);
+      const full = isId
+        ? defaultIdQuad(img.naturalWidth, img.naturalHeight)
+        : tightQuad(img.naturalWidth, img.naturalHeight);
 
-      // Gallery / upload: detect edges at higher res and apply crop automatically
-      if (options?.autoCrop) {
+      // Gallery / upload: load full document by default when it already fills
+      // the frame; never skip the crop step so the user can choose.
+      if (options?.fromGallery) {
         const detected = await detectDocumentQuadDetailed(dataUrl, 800);
-        const q =
-          detected.found && detected.confidence >= 0.28
-            ? detected.quad
-            : isId
-              ? fallback
-              : // Already-cropped gallery photos often fill the frame
-                tightQuad(detected.width, detected.height);
-        setQuad(q);
-        let warped = await warpPerspective(dataUrl, q);
-        if (isId) {
-          warped = await normalizeToCnicAspect(warped);
+        let q = full;
+        if (detected.found && detected.confidence >= 0.35) {
+          const bounds = outputSizeFromQuad(detected.quad);
+          const areaRatio =
+            (bounds.width * bounds.height) /
+            Math.max(1, detected.width * detected.height);
+          // Small document in a bigger photo → suggest edge crop
+          // Large / already full-page scan → keep full size
+          if (areaRatio < 0.82) {
+            q = detected.quad;
+          }
         }
-        setCropped(warped);
-        const next: Partial<Record<ScanFilter, string>> = { original: warped };
-        await Promise.all(
-          SCAN_FILTERS.filter((f) => f.id !== "original").map(async (f) => {
-            next[f.id] = await applyFilter(warped, f.id);
-          }),
-        );
-        setPreviews(next);
-        setFilter(defaultFilter);
-        setStep("enhance");
+        setQuad(q);
+        setStep("crop");
         return;
       }
 
@@ -177,28 +193,27 @@ export function ScanFlow({
     setQuad(
       isId
         ? defaultIdQuad(img.naturalWidth, img.naturalHeight)
-        : defaultQuad(img.naturalWidth, img.naturalHeight),
+        : tightQuad(img.naturalWidth, img.naturalHeight),
     );
+  };
+
+  /** Import the whole image with no edge crop — for already full-page scans. */
+  const importFullSize = async () => {
+    if (!rawImage) return;
+    setBusy(true);
+    try {
+      await goToEnhance(rawImage);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const confirmCrop = async () => {
     if (!rawImage || !quad) return;
     setBusy(true);
     try {
-      let warped = await warpPerspective(rawImage, quad);
-      if (isId) {
-        warped = await normalizeToCnicAspect(warped);
-      }
-      setCropped(warped);
-      const next: Partial<Record<ScanFilter, string>> = { original: warped };
-      await Promise.all(
-        SCAN_FILTERS.filter((f) => f.id !== "original").map(async (f) => {
-          next[f.id] = await applyFilter(warped, f.id);
-        }),
-      );
-      setPreviews(next);
-      setFilter(defaultFilter);
-      setStep("enhance");
+      const warped = await warpPerspective(rawImage, quad);
+      await goToEnhance(warped);
     } finally {
       setBusy(false);
     }
@@ -245,6 +260,7 @@ export function ScanFlow({
     setQuad(null);
     setCropped(null);
     setPreviews({});
+    setFromGallery(false);
   };
 
   const savePagesAndReturn = async (nextPages: ScanPage[]) => {
@@ -417,7 +433,9 @@ export function ScanFlow({
           )}
           <CameraCapture
             onCapture={(src, liveQuad) => void beginWithImage(src, liveQuad)}
-            onUpload={(src) => void beginWithImage(src, undefined, { autoCrop: true })}
+            onUpload={(src) =>
+              void beginWithImage(src, undefined, { fromGallery: true })
+            }
             guide={isId ? "cnic" : "document"}
             guideLabel={
               isId
@@ -433,7 +451,9 @@ export function ScanFlow({
       {step === "crop" && rawImage && quad && (
         <div className="step-panel">
           <p className="hint" style={{ textAlign: "center", marginBottom: "0.5rem" }}>
-            Drag corners to adjust. Use Auto crop or Rotate if needed.
+            {fromGallery
+              ? "Full document loaded. Crop edges, or import full size."
+              : "Drag corners to adjust. Pinch to zoom."}
           </p>
           <CropEditor imageSrc={rawImage} quad={quad} onChange={setQuad} />
           <div className="crop-tools" role="toolbar" aria-label="Crop tools">
@@ -444,6 +464,22 @@ export function ScanFlow({
               onClick={() => void runAutoCrop()}
             >
               Auto crop
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={busy}
+              onClick={() => void useFullPage()}
+            >
+              Full frame
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={busy}
+              onClick={() => void importFullSize()}
+            >
+              Full size import
             </button>
             <button
               type="button"
@@ -461,24 +497,26 @@ export function ScanFlow({
             >
               Rotate right
             </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={busy}
-              onClick={() => void useFullPage()}
-            >
-              Full page
-            </button>
           </div>
-          <div className="step-actions">
+          <div className="step-actions stacked crop-continue">
             <button
               type="button"
               className="btn-primary"
               onClick={() => void confirmCrop()}
               disabled={busy}
             >
-              Continue
+              Crop & continue
             </button>
+            {fromGallery && (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => void importFullSize()}
+                disabled={busy}
+              >
+                Import full size
+              </button>
+            )}
           </div>
         </div>
       )}
