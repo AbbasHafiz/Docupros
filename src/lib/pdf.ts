@@ -1,6 +1,12 @@
 import { jsPDF, GState } from "jspdf";
 import { loadImage } from "./imageProcessing";
 import { printDataUrl } from "./idPrint";
+import {
+  escapeHtml,
+  openPrintWindow,
+  triggerPrintWhenReady,
+  writePrintDocument,
+} from "./printWindow";
 
 /**
  * Normalize any image data-URL (PNG/WebP/JPEG) to a JPEG data-URL.
@@ -134,21 +140,24 @@ export async function printDocumentPages(
   title = "Document",
 ) {
   if (!pageDataUrls.length) return;
-  // Normalize to JPEG so print preview always has visible content
-  const normalized: string[] = [];
-  for (const src of pageDataUrls) {
-    const { dataUrl } = await toPdfJpeg(src, 1800);
-    normalized.push(dataUrl);
-  }
-  const parts = normalized
-    .map(
-      (src) =>
-        `<div class="page"><img src="${src}" alt="" /></div>`,
-    )
-    .join("");
-  const w = window.open("", "_blank", "noopener,noreferrer,width=900,height=1200");
-  if (!w) throw new Error("Pop-up blocked — allow pop-ups to print");
-  w.document.write(`<!doctype html><html><head><title>${title}</title>
+
+  // Open immediately while we still have the user gesture — otherwise browsers
+  // leave a blank white tab (especially with noopener) after async work.
+  const w = openPrintWindow(title);
+
+  try {
+    // Normalize to JPEG so print preview always has visible content
+    const normalized: string[] = [];
+    for (const src of pageDataUrls) {
+      const { dataUrl } = await toPdfJpeg(src, 1800);
+      normalized.push(dataUrl);
+    }
+    const parts = normalized
+      .map((src) => `<div class="page"><img src="${src}" alt="" /></div>`)
+      .join("");
+    writePrintDocument(
+      w,
+      `<!doctype html><html><head><meta charset="utf-8" /><title>${escapeHtml(title)}</title>
     <style>
       @page { size: A4 portrait; margin: 8mm; }
       html, body { margin: 0; padding: 0; background: #fff; }
@@ -169,10 +178,17 @@ export async function printDocumentPages(
         height: auto;
         object-fit: contain;
       }
-    </style></head><body>${parts}
-    <script>window.onload=()=>setTimeout(()=>{window.focus();window.print()},250)</script>
-    </body></html>`);
-  w.document.close();
+    </style></head><body>${parts}</body></html>`,
+    );
+    triggerPrintWhenReady(w);
+  } catch (err) {
+    try {
+      w.close();
+    } catch {
+      /* ignore */
+    }
+    throw err;
+  }
 }
 
 /** Single-page print helper used by ID sheets too. */
