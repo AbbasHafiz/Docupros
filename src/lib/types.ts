@@ -11,8 +11,8 @@ export type ScanFilter =
   | "restore";
 
 export const SCAN_FILTERS: { id: ScanFilter; label: string }[] = [
+  { id: "original", label: "Original" },
   { id: "magic", label: "Magic" },
-  { id: "original", label: "Color" },
   { id: "vivid", label: "Vivid" },
   { id: "grayscale", label: "Gray" },
   { id: "bw", label: "B&W" },
