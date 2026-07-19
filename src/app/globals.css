@@ -1811,8 +1811,8 @@ body.app-shell:has(.doc-view) {
   overflow: hidden;
   border-radius: 16px;
   box-shadow: var(--shadow);
-  background: transparent;
-  container-type: size;
+  /* Solid page plane so scans never “vanish” on the stage */
+  background: #ffffff;
 }
 
 .doc-page-frame .doc-page-image {
@@ -1829,6 +1829,10 @@ body.app-shell:has(.doc-view) {
   display: block;
   border-radius: inherit;
   overflow: hidden;
+  /* Query size from the positioned overlay — never on the frame
+     (container-type:size on the frame collapses the page image). */
+  container-type: size;
+  container-name: page-watermark;
 }
 
 .page-watermark-overlay.is-css.is-full {
