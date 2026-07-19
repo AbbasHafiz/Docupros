@@ -59,12 +59,16 @@ export type WatermarkOptions = {
   text: string;
   /** Hex color, e.g. #0f766e */
   color: string;
-  /** 0.04–0.55 */
+  /** 0.08–0.6 */
   opacity: number;
   /** center = one diagonal mark; full = tiled across the page */
   layout: WatermarkLayout;
   /** Rotation in degrees. */
   angle: number;
+  /** Font scale 0.4–2.5 (1 = default). */
+  size: number;
+  /** Tile spacing scale 0.5–2.5 for full-page (1 = default density). */
+  spacing: number;
 };
 
 export type ScanPage = {

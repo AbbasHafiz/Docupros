@@ -6,6 +6,7 @@ import {
   DEFAULT_WATERMARK_STYLE,
   normalizeWatermark,
   resolveDocWatermark,
+  watermarkTileGrid,
 } from "@/lib/watermark";
 
 const PRESET_COLORS = [
@@ -39,6 +40,10 @@ export function WatermarkSheet({ doc, open, onClose, onSave }: Props) {
   const [angle, setAngle] = useState(
     existing?.angle ?? DEFAULT_WATERMARK_STYLE.angle,
   );
+  const [size, setSize] = useState(existing?.size ?? DEFAULT_WATERMARK_STYLE.size);
+  const [spacing, setSpacing] = useState(
+    existing?.spacing ?? DEFAULT_WATERMARK_STYLE.spacing,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,6 +55,8 @@ export function WatermarkSheet({ doc, open, onClose, onSave }: Props) {
     setOpacity(wm?.opacity ?? DEFAULT_WATERMARK_STYLE.opacity);
     setLayout(wm?.layout ?? "center");
     setAngle(wm?.angle ?? DEFAULT_WATERMARK_STYLE.angle);
+    setSize(wm?.size ?? DEFAULT_WATERMARK_STYLE.size);
+    setSpacing(wm?.spacing ?? DEFAULT_WATERMARK_STYLE.spacing);
     setError(null);
   }, [open, doc]);
 
@@ -61,7 +68,18 @@ export function WatermarkSheet({ doc, open, onClose, onSave }: Props) {
     opacity,
     layout,
     angle,
+    size,
+    spacing,
   });
+
+  const previewGrid =
+    preview?.layout === "full"
+      ? watermarkTileGrid(preview.spacing)
+      : { cols: 1, rows: 1 };
+  const previewMarks =
+    preview?.layout === "full"
+      ? Array.from({ length: previewGrid.cols * previewGrid.rows }, (_, i) => i)
+      : [0];
 
   const save = async (clear = false) => {
     setBusy(true);
@@ -76,6 +94,8 @@ export function WatermarkSheet({ doc, open, onClose, onSave }: Props) {
           opacity,
           layout,
           angle,
+          size,
+          spacing,
         });
         if (!options) throw new Error("Enter watermark text");
         await onSave(options);
@@ -116,7 +136,7 @@ export function WatermarkSheet({ doc, open, onClose, onSave }: Props) {
 
         <p className="hint share-hint">
           Shown on the page preview right away, and included in PDF export,
-          print, and share. Use Full page to tile across the whole page.
+          print, and share. Resize text and adjust spacing for full-page tiles.
         </p>
 
         {error && <p className="share-error">{error}</p>}
@@ -180,6 +200,35 @@ export function WatermarkSheet({ doc, open, onClose, onSave }: Props) {
         </div>
 
         <label className="field">
+          <span>Size · {Math.round(size * 100)}%</span>
+          <input
+            type="range"
+            min={0.4}
+            max={2.5}
+            step={0.05}
+            value={size}
+            disabled={busy}
+            onChange={(e) => setSize(Number(e.target.value))}
+          />
+        </label>
+
+        <label className={`field ${layout !== "full" ? "is-dimmed" : ""}`}>
+          <span>
+            Spacing · {Math.round(spacing * 100)}%
+            {layout !== "full" ? " (full page)" : ""}
+          </span>
+          <input
+            type="range"
+            min={0.5}
+            max={2.5}
+            step={0.05}
+            value={spacing}
+            disabled={busy || layout !== "full"}
+            onChange={(e) => setSpacing(Number(e.target.value))}
+          />
+        </label>
+
+        <label className="field">
           <span>Opacity · {Math.round(opacity * 100)}%</span>
           <input
             type="range"
@@ -212,13 +261,17 @@ export function WatermarkSheet({ doc, open, onClose, onSave }: Props) {
             ["--wm-color" as string]: preview?.color ?? color,
             ["--wm-opacity" as string]: String(preview?.opacity ?? opacity),
             ["--wm-angle" as string]: `${preview?.angle ?? angle}deg`,
+            ["--wm-size" as string]: String(preview?.size ?? size),
+            ["--wm-cols" as string]: String(previewGrid.cols),
+            ["--wm-rows" as string]: String(previewGrid.rows),
           }}
         >
-          <div className="watermark-preview-page">
-            {(preview?.layout === "full"
-              ? Array.from({ length: 12 }, (_, i) => i)
-              : [0]
-            ).map((i) => (
+          <div
+            className={`watermark-preview-page ${
+              preview?.layout === "full" ? "is-full" : ""
+            }`}
+          >
+            {previewMarks.map((i) => (
               <span
                 key={i}
                 className={`watermark-preview-mark ${

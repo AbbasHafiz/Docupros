@@ -7,6 +7,8 @@ export const DEFAULT_WATERMARK_STYLE: Omit<WatermarkOptions, "text"> = {
   opacity: 0.28,
   layout: "center",
   angle: 35,
+  size: 1,
+  spacing: 1,
 };
 
 function clamp(n: number, min: number, max: number) {
@@ -39,6 +41,18 @@ export function normalizeWatermark(
     angle: Number.isFinite(input.angle)
       ? Number(input.angle)
       : DEFAULT_WATERMARK_STYLE.angle,
+    size: clamp(
+      Number.isFinite(input.size) ? Number(input.size) : DEFAULT_WATERMARK_STYLE.size,
+      0.4,
+      2.5,
+    ),
+    spacing: clamp(
+      Number.isFinite(input.spacing)
+        ? Number(input.spacing)
+        : DEFAULT_WATERMARK_STYLE.spacing,
+      0.5,
+      2.5,
+    ),
   };
 }
 
@@ -71,6 +85,15 @@ export function watermarkLabel(options: WatermarkOptions | null | undefined) {
   return options.layout === "full" ? "Watermark · Full" : "Watermark · On";
 }
 
+/** Grid density for full-page tiling from spacing scale. */
+export function watermarkTileGrid(spacing = 1): { cols: number; rows: number } {
+  const s = clamp(spacing, 0.5, 2.5);
+  return {
+    cols: Math.max(2, Math.round(3 / s)),
+    rows: Math.max(2, Math.round(4 / s)),
+  };
+}
+
 type PdfUnit = "mm" | "pt";
 
 /** Draw watermark on a canvas (CNIC print sheets, previews, baked images). */
@@ -82,10 +105,12 @@ export function applyWatermarkToCanvas(
 ) {
   const { r, g, b } = parseHexColor(options.color);
   const rad = (-options.angle * Math.PI) / 180;
-  const fontSize =
+  const sizeScale = options.size || 1;
+  const base =
     options.layout === "full"
       ? Math.max(28, Math.round(Math.min(pageW, pageH) / 12))
       : Math.max(42, Math.round(Math.min(pageW, pageH) / 8));
+  const fontSize = Math.max(12, Math.round(base * sizeScale));
 
   ctx.save();
   ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${options.opacity})`;
@@ -102,8 +127,7 @@ export function applyWatermarkToCanvas(
   };
 
   if (options.layout === "full") {
-    const cols = 3;
-    const rows = 4;
+    const { cols, rows } = watermarkTileGrid(options.spacing);
     const stepX = pageW / cols;
     const stepY = pageH / rows;
     for (let row = 0; row < rows; row++) {
