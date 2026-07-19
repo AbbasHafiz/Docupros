@@ -2,6 +2,11 @@ import { jsPDF } from "jspdf";
 import { loadImage } from "./imageProcessing";
 import { composeIdPrintSheet, printDataUrl } from "./idPrint";
 import { openPrintWindow } from "./printWindow";
+import {
+  applyWatermarkToPdfPage,
+  normalizeWatermark,
+  type WatermarkOptions,
+} from "./watermark";
 
 /** Official NADRA CNIC / ISO ID-1 (CR-80) size */
 export const CNIC_WIDTH_MM = 85.6;
@@ -13,7 +18,7 @@ export type CnicExportOptions = {
   front: string;
   back?: string | null;
   title?: string;
-  watermark?: string;
+  watermark?: string | WatermarkOptions;
   copies?: 1 | 2;
   includeBack?: boolean;
   fitMode?: "fit" | "cover";
@@ -98,13 +103,9 @@ export async function exportCnicSizedPdf(
       pdf.addPage([CNIC_WIDTH_MM, CNIC_HEIGHT_MM], w >= h ? "l" : "p");
     }
     pdf.addImage(dataUrl, "JPEG", 0, 0, CNIC_WIDTH_MM, CNIC_HEIGHT_MM, undefined, "FAST");
-    if (options.watermark?.trim()) {
-      pdf.setTextColor(15, 118, 110);
-      pdf.setFontSize(10);
-      pdf.text(options.watermark.trim(), CNIC_WIDTH_MM / 2, CNIC_HEIGHT_MM / 2, {
-        align: "center",
-        angle: 30,
-      });
+    const wm = normalizeWatermark(options.watermark);
+    if (wm) {
+      applyWatermarkToPdfPage(pdf, CNIC_WIDTH_MM, CNIC_HEIGHT_MM, wm, "mm");
     }
   }
 

@@ -53,6 +53,20 @@ export type OcrResult = {
 
 export type DocumentKind = "document" | "id_card" | "pdf_form";
 
+export type WatermarkLayout = "center" | "full";
+
+export type WatermarkOptions = {
+  text: string;
+  /** Hex color, e.g. #0f766e */
+  color: string;
+  /** 0.04–0.55 */
+  opacity: number;
+  /** center = one diagonal mark; full = tiled across the page */
+  layout: WatermarkLayout;
+  /** Rotation in degrees. */
+  angle: number;
+};
+
 export type ScanPage = {
   id: string;
   imageDataUrl: string;
@@ -90,7 +104,10 @@ export type DocumentRecord = {
   ocrText?: string;
   thumbnail?: string;
   kind?: DocumentKind;
+  /** Legacy watermark text (kept for older saved docs). */
   watermark?: string;
+  /** Full watermark settings (layout, color, opacity, angle). */
+  watermarkOptions?: WatermarkOptions;
   formFields?: FormField[];
   sourcePdfBase64?: string;
   /** App-level lock password (SHA-256 hex). */

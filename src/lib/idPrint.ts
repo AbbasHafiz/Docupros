@@ -6,6 +6,11 @@ import {
   triggerPrintWhenReady,
   writePrintDocument,
 } from "./printWindow";
+import {
+  applyWatermarkToCanvas,
+  normalizeWatermark,
+  type WatermarkOptions,
+} from "./watermark";
 
 /** Pakistani CNIC / NADRA / ISO ID-1 (CR-80) */
 export const ID_WIDTH_MM = 85.6;
@@ -18,7 +23,7 @@ export type IdPrintOptions = {
   copies?: 1 | 2;
   /** When false, only the front is placed even if back exists. Default true. */
   includeBack?: boolean;
-  watermark?: string;
+  watermark?: string | WatermarkOptions;
   frontLabel?: string;
   backLabel?: string;
   cardWidthMm?: number;
@@ -148,15 +153,9 @@ export async function composeIdPrintSheet(
     pageH - 28,
   );
 
-  if (options.watermark?.trim()) {
-    ctx.save();
-    ctx.translate(pageW / 2, pageH / 2);
-    ctx.rotate(-Math.PI / 6);
-    ctx.font = `bold ${Math.round(28 * (dpi / 96))}px sans-serif`;
-    ctx.fillStyle = "rgba(15, 118, 110, 0.1)";
-    ctx.textAlign = "center";
-    ctx.fillText(options.watermark.trim(), 0, 0);
-    ctx.restore();
+  if (options.watermark) {
+    const wm = normalizeWatermark(options.watermark);
+    if (wm) applyWatermarkToCanvas(ctx, pageW, pageH, wm);
   }
 
   return canvas.toDataURL("image/jpeg", 0.95);

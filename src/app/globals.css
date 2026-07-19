@@ -640,6 +640,97 @@ body.app-shell:has(.doc-view) {
   gap: 0.55rem;
 }
 
+.watermark-sheet {
+  display: grid;
+  gap: 0.85rem;
+  max-height: min(92dvh, 720px);
+  overflow: auto;
+}
+
+.watermark-color-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.watermark-swatch {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.18);
+  padding: 0;
+  cursor: pointer;
+}
+
+.watermark-swatch.is-active {
+  box-shadow: 0 0 0 2px #0f766e, 0 0 0 4px rgba(15, 118, 110, 0.25);
+}
+
+.watermark-custom-color {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.18);
+}
+
+.watermark-custom-color input {
+  width: 150%;
+  height: 150%;
+  margin: -25%;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background: transparent;
+}
+
+.watermark-preview {
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: #e5e7eb;
+  padding: 0.65rem;
+}
+
+.watermark-preview-page {
+  position: relative;
+  min-height: 7.5rem;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+  border: 1px solid #d1d5db;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+  place-items: center;
+}
+
+.watermark-preview-mark {
+  color: var(--wm-color, #0f766e);
+  opacity: var(--wm-opacity, 0.16);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transform: rotate(calc(-1 * var(--wm-angle, 35deg)));
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
+.watermark-preview-mark.is-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+}
+
 
 
 

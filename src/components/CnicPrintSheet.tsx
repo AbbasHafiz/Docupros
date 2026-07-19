@@ -9,6 +9,7 @@ import {
   printCnic,
 } from "@/lib/cnic";
 import { downloadBlob } from "@/lib/pdf";
+import { resolveDocWatermark } from "@/lib/watermark";
 
 type Props = {
   doc: DocumentRecord;
@@ -41,7 +42,7 @@ export function CnicPrintSheet({ doc, open, onClose, onStatus }: Props) {
         front: front.imageDataUrl,
         back: back?.imageDataUrl,
         title: doc.title,
-        watermark: doc.watermark,
+        watermark: resolveDocWatermark(doc) ?? doc.watermark,
         copies,
         includeBack: includeBack && Boolean(back),
         fitMode: "fit" as const,

@@ -2,6 +2,7 @@ import type { DocumentRecord } from "./types";
 import { downloadBlob, exportDocumentPdf } from "./pdf";
 import { cnicFilename, exportCnicSizedPdf } from "./cnic";
 import { loadImage } from "./imageProcessing";
+import { resolveDocWatermark } from "./watermark";
 
 export type SharePlatform =
   | "system"
@@ -47,7 +48,7 @@ export async function prepareDocumentPdf(
       front: front.imageDataUrl,
       back: back?.imageDataUrl,
       title: doc.title,
-      watermark: doc.watermark,
+      watermark: resolveDocWatermark(doc) ?? doc.watermark,
     });
     filename = cnicFilename(doc.title);
     text = `${title} — Pakistan CNIC (85.6×53.98 mm)`;
@@ -58,7 +59,7 @@ export async function prepareDocumentPdf(
     if (!pages.length) throw new Error("No pages to share");
     blob = await exportDocumentPdf(title, pages, {
       a4: true,
-      watermark: doc.watermark,
+      watermark: resolveDocWatermark(doc) ?? doc.watermark,
     });
     filename = safeFilename(title, "pdf");
     text = `${title} — shared from Docupros`;
