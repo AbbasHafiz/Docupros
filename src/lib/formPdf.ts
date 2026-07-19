@@ -110,7 +110,7 @@ export async function exportFillablePdf(
     const pages = pdf.getPages();
     for (const p of pages) {
       const { width, height } = p.getSize();
-      const preferred = Math.max(12, (Math.min(width, height) / 16) * (wm.size || 1));
+      const preferred = Math.max(9, (Math.min(width, height) / 28) * (wm.size || 1));
       const size = Math.max(
         9,
         Math.min(preferred, (width * 0.6) / Math.max(1, wm.text.length * 0.55)),

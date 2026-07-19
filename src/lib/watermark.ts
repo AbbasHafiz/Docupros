@@ -9,7 +9,7 @@ export const DEFAULT_WATERMARK_STYLE: Omit<WatermarkOptions, "text"> = {
   opacity: 0.32,
   layout: "center",
   angle: 35,
-  size: 1,
+  size: 0.75,
   spacing: 1,
 };
 
@@ -149,8 +149,8 @@ export function applyWatermarkToCanvas(
 
   const preferred =
     options.layout === "full"
-      ? Math.max(16, Math.round((Math.min(pageW, pageH) / 16) * sizeScale))
-      : Math.max(22, Math.round((Math.min(pageW, pageH) / 10) * sizeScale));
+      ? Math.max(10, Math.round((Math.min(pageW, pageH) / 28) * sizeScale))
+      : Math.max(14, Math.round((Math.min(pageW, pageH) / 18) * sizeScale));
 
   // Keep text within ~65% of page width so rotation doesn't spill badly
   const fontSize = fitFontToWidth(

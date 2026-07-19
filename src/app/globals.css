@@ -805,7 +805,7 @@ body.app-shell:has(.doc-view) {
   opacity: var(--wm-opacity, 0.16);
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: calc(0.72rem * var(--wm-size, 1));
+  font-size: calc(0.48rem * var(--wm-size, 1));
   letter-spacing: 0.04em;
   text-transform: uppercase;
   transform: rotate(calc(-1 * var(--wm-angle, 35deg)));
@@ -819,7 +819,7 @@ body.app-shell:has(.doc-view) {
   inset: 0;
   display: grid;
   place-items: center;
-  font-size: calc(1rem * var(--wm-size, 1));
+  font-size: calc(0.72rem * var(--wm-size, 1));
   grid-column: 1 / -1;
   grid-row: 1 / -1;
 }
@@ -1848,7 +1848,7 @@ body.app-shell:has(.doc-view) {
 }
 
 .page-watermark-overlay.is-css.is-full .page-watermark-mark {
-  font-size: calc(0.72rem * var(--wm-size, 1));
+  font-size: calc(0.52rem * var(--wm-size, 1));
   max-width: 98%;
   line-height: 1.05;
 }
@@ -1859,7 +1859,7 @@ body.app-shell:has(.doc-view) {
   font-family: var(--font-display);
   font-weight: 800;
   /* Rem sizing — reliable on every phone (cqw was collapsing to 0) */
-  font-size: calc(0.95rem * var(--wm-size, 1));
+  font-size: calc(0.62rem * var(--wm-size, 1));
   letter-spacing: 0.03em;
   text-transform: uppercase;
   transform: rotate(calc(-1 * var(--wm-angle, 35deg)));
@@ -1876,7 +1876,7 @@ body.app-shell:has(.doc-view) {
   inset: 0;
   display: grid;
   place-items: center;
-  font-size: calc(1.55rem * var(--wm-size, 1));
+  font-size: calc(0.95rem * var(--wm-size, 1));
   max-width: none;
 }
 
