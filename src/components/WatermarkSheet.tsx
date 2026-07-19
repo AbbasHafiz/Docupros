@@ -259,7 +259,7 @@ export function WatermarkSheet({
             <span>Size · {Math.round(size * 100)}%</span>
             <input
               type="range"
-              min={0.4}
+              min={0.15}
               max={2.5}
               step={0.05}
               value={size}

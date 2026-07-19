@@ -65,7 +65,7 @@ export type WatermarkOptions = {
   layout: WatermarkLayout;
   /** Rotation in degrees. */
   angle: number;
-  /** Font scale 0.4–2.5 (1 = default). */
+  /** Font scale 0.15–2.5 (1 = default). */
   size: number;
   /** Tile line-spacing scale 0.4–2 for full-page (1 ≈ line-by-line). */
   spacing: number;
