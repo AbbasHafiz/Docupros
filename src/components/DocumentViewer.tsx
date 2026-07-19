@@ -19,6 +19,7 @@ import {
 import { ShareSheet } from "./ShareSheet";
 import { CnicPrintSheet } from "./CnicPrintSheet";
 import { WatermarkSheet } from "./WatermarkSheet";
+import { WatermarkOverlay } from "./WatermarkOverlay";
 import type { WatermarkOptions } from "@/lib/types";
 import { resolveDocWatermark, watermarkLabel } from "@/lib/watermark";
 
@@ -173,6 +174,7 @@ export function DocumentViewer({ id }: Props) {
     doc.pages.find((p) => p.side === "front") ?? doc.pages[0] ?? null;
   const back = doc.pages.find((p) => p.side === "back") ?? null;
   const activePage = doc.pages[active];
+  const pageWatermark = resolveDocWatermark(doc);
 
   const persist = async (updated: DocumentRecord) => {
     await saveDocument(updated);
@@ -236,6 +238,7 @@ export function DocumentViewer({ id }: Props) {
       await printDocumentPages(
         doc.pages.map((p) => p.imageDataUrl),
         doc.title,
+        { watermark: pageWatermark },
       );
     } catch (e) {
       alert(e instanceof Error ? e.message : "Print failed");
@@ -362,12 +365,15 @@ export function DocumentViewer({ id }: Props) {
 
       <div className="doc-scroll">
         <div className="doc-stage">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={activePage?.imageDataUrl}
-            alt={`Page ${active + 1}`}
-            className="doc-page-image"
-          />
+          <div className="doc-page-frame">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={activePage?.imageDataUrl}
+              alt={`Page ${active + 1}`}
+              className="doc-page-image"
+            />
+            {pageWatermark && <WatermarkOverlay options={pageWatermark} />}
+          </div>
         </div>
 
         {(busy || renderStatus) && (
@@ -579,7 +585,7 @@ export function DocumentViewer({ id }: Props) {
           className="btn-secondary"
           onClick={() => setWatermarkOpen(true)}
         >
-          {watermarkLabel(resolveDocWatermark(doc))}
+          {watermarkLabel(pageWatermark)}
         </button>
         <button
           type="button"

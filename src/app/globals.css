@@ -1630,6 +1630,56 @@ body.app-shell:has(.doc-view) {
   overflow: hidden;
 }
 
+.doc-page-frame {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+  max-height: min(52dvh, 100%);
+  line-height: 0;
+}
+
+.doc-page-frame .doc-page-image {
+  max-height: inherit;
+}
+
+.page-watermark-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: 16px;
+  z-index: 2;
+}
+
+.page-watermark-overlay.is-full {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+  place-items: center;
+}
+
+.page-watermark-mark {
+  color: var(--wm-color, #0f766e);
+  opacity: var(--wm-opacity, 0.28);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(0.85rem, 4.2vw, 1.55rem);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transform: rotate(calc(-1 * var(--wm-angle, 35deg)));
+  white-space: nowrap;
+  user-select: none;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.page-watermark-mark.is-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: clamp(1.1rem, 6vw, 2.1rem);
+}
+
 .doc-page-image {
   width: auto;
   height: auto;
@@ -1678,6 +1728,10 @@ body.app-shell:has(.doc-view) {
   .doc-toolbar {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     max-height: none;
+  }
+
+  .doc-page-frame {
+    max-height: min(58dvh, 100%);
   }
 
   .doc-page-image {

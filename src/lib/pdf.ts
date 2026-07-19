@@ -10,6 +10,7 @@ import {
 import {
   applyWatermarkToPdfPage,
   normalizeWatermark,
+  stampWatermarkOnImage,
   type WatermarkOptions,
 } from "./watermark";
 
@@ -92,7 +93,7 @@ export async function exportDocumentPdf(
       const y = (pageH - drawH) / 2;
       pdf.addImage(dataUrl, "JPEG", x, y, drawW, drawH, undefined, "FAST");
       if (watermark) {
-        applyWatermarkToPdfPage(pdf, pageW, pageH, watermark, "mm");
+        await applyWatermarkToPdfPage(pdf, pageW, pageH, watermark, "mm");
       }
     } else {
       const orientation = w >= h ? "l" : "p";
@@ -113,7 +114,7 @@ export async function exportDocumentPdf(
       }
       pdf.addImage(dataUrl, "JPEG", 0, 0, pw, ph, undefined, "FAST");
       if (watermark) {
-        applyWatermarkToPdfPage(pdf, pw, ph, watermark, "pt");
+        await applyWatermarkToPdfPage(pdf, pw, ph, watermark, "pt");
       }
     }
   }
@@ -135,19 +136,24 @@ export function downloadBlob(blob: Blob, filename: string) {
 export async function printDocumentPages(
   pageDataUrls: string[],
   title = "Document",
+  options?: { watermark?: string | WatermarkOptions | null },
 ) {
   if (!pageDataUrls.length) return;
 
   // Open immediately while we still have the user gesture — otherwise browsers
   // leave a blank white tab (especially with noopener) after async work.
   const w = openPrintWindow(title);
+  const watermark = normalizeWatermark(options?.watermark);
 
   try {
     // Normalize to JPEG so print preview always has visible content
     const normalized: string[] = [];
     for (const src of pageDataUrls) {
       const { dataUrl } = await toPdfJpeg(src, 1800);
-      normalized.push(dataUrl);
+      const stamped = watermark
+        ? await stampWatermarkOnImage(dataUrl, watermark)
+        : dataUrl;
+      normalized.push(stamped);
     }
     const parts = normalized
       .map((src) => `<div class="page"><img src="${src}" alt="" /></div>`)

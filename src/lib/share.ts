@@ -2,7 +2,7 @@ import type { DocumentRecord } from "./types";
 import { downloadBlob, exportDocumentPdf } from "./pdf";
 import { cnicFilename, exportCnicSizedPdf } from "./cnic";
 import { loadImage } from "./imageProcessing";
-import { resolveDocWatermark } from "./watermark";
+import { resolveDocWatermark, stampWatermarkOnImage } from "./watermark";
 
 export type SharePlatform =
   | "system"
@@ -96,7 +96,11 @@ export async function prepareDocumentImage(
   ctx.fillRect(0, 0, w, h);
   ctx.drawImage(img, 0, 0, w, h);
 
-  const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+  let dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+  const wm = resolveDocWatermark(doc);
+  if (wm) {
+    dataUrl = await stampWatermarkOnImage(dataUrl, wm);
+  }
   const res = await fetch(dataUrl);
   const blob = await res.blob();
   const filename = safeFilename(title, "jpg");
