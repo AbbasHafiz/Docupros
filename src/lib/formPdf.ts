@@ -5,7 +5,6 @@ import {
   normalizeWatermark,
   parseHexColor,
   resolveDocWatermark,
-  watermarkTileGrid,
 } from "./watermark";
 
 function dataUrlToUint8(dataUrl: string): Uint8Array {
@@ -111,12 +110,18 @@ export async function exportFillablePdf(
     const pages = pdf.getPages();
     for (const p of pages) {
       const { width, height } = p.getSize();
-      const base = Math.max(18, Math.min(width, height) / 14);
-      const size = Math.max(10, base * (wm.size || 1));
+      const preferred = Math.max(12, (Math.min(width, height) / 16) * (wm.size || 1));
+      const size = Math.max(
+        9,
+        Math.min(preferred, (width * 0.6) / Math.max(1, wm.text.length * 0.55)),
+      );
+      const textW = Math.max(1, wm.text.length * size * 0.55);
+      const stepX = Math.max(textW * 1.2, width / 3.2) * (wm.spacing || 1);
+      const stepY = Math.max(size * 3.4, height / 5.5) * (wm.spacing || 1);
       const draw = (x: number, y: number) => {
         p.drawText(wm.text, {
-          x,
-          y,
+          x: Math.max(8, Math.min(width - 8, x)),
+          y: Math.max(8, Math.min(height - 8, y)),
           size,
           font,
           color: rgb(r / 255, g / 255, b / 255),
@@ -125,16 +130,13 @@ export async function exportFillablePdf(
         });
       };
       if (wm.layout === "full") {
-        const { cols, rows } = watermarkTileGrid(wm.spacing);
-        const stepX = width / cols;
-        const stepY = height / rows;
-        for (let row = 0; row < rows; row++) {
-          for (let col = 0; col < cols; col++) {
-            draw(stepX * (col + 0.35), stepY * (row + 0.5));
+        for (let y = stepY * 0.5; y < height; y += stepY) {
+          for (let x = stepX * 0.5; x < width; x += stepX) {
+            draw(x, y);
           }
         }
       } else {
-        draw(width * 0.25, height * 0.5);
+        draw(width * 0.5, height * 0.5);
       }
     }
   }

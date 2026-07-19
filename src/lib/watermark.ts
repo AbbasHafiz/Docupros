@@ -4,7 +4,7 @@ import type { DocumentRecord, WatermarkLayout, WatermarkOptions } from "./types"
 
 export const DEFAULT_WATERMARK_STYLE: Omit<WatermarkOptions, "text"> = {
   color: "#0f766e",
-  opacity: 0.28,
+  opacity: 0.32,
   layout: "center",
   angle: 35,
   size: 1,
@@ -96,27 +96,68 @@ export function watermarkTileGrid(spacing = 1): { cols: number; rows: number } {
 
 type PdfUnit = "mm" | "pt";
 
-/** Draw watermark on a canvas (CNIC print sheets, previews, baked images). */
+function setWmFont(ctx: CanvasRenderingContext2D, size: number) {
+  ctx.font = `bold ${size}px system-ui, "Segoe UI", sans-serif`;
+}
+
+/** Shrink font until text fits inside maxWidth. */
+function fitFontToWidth(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  preferred: number,
+  maxWidth: number,
+  minSize = 9,
+): number {
+  let size = preferred;
+  setWmFont(ctx, size);
+  while (size > minSize && ctx.measureText(text).width > maxWidth) {
+    size -= 1;
+    setWmFont(ctx, size);
+  }
+  return size;
+}
+
+/**
+ * Draw watermark clipped to the page — same renderer for preview, PDF, print.
+ * Full-page tiles stay inside the page; long text is sized down to fit.
+ */
 export function applyWatermarkToCanvas(
   ctx: CanvasRenderingContext2D,
   pageW: number,
   pageH: number,
   options: WatermarkOptions,
 ) {
+  if (pageW < 2 || pageH < 2) return;
+
   const { r, g, b } = parseHexColor(options.color);
   const rad = (-options.angle * Math.PI) / 180;
   const sizeScale = options.size || 1;
-  const base =
-    options.layout === "full"
-      ? Math.max(28, Math.round(Math.min(pageW, pageH) / 12))
-      : Math.max(42, Math.round(Math.min(pageW, pageH) / 8));
-  const fontSize = Math.max(12, Math.round(base * sizeScale));
+  const spacing = options.spacing || 1;
 
   ctx.save();
+  // Hard clip — nothing can draw outside the page
+  ctx.beginPath();
+  ctx.rect(0, 0, pageW, pageH);
+  ctx.clip();
+
   ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${options.opacity})`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = `bold ${fontSize}px system-ui, Segoe UI, sans-serif`;
+
+  const preferred =
+    options.layout === "full"
+      ? Math.max(16, Math.round((Math.min(pageW, pageH) / 16) * sizeScale))
+      : Math.max(22, Math.round((Math.min(pageW, pageH) / 10) * sizeScale));
+
+  // Keep text within ~65% of page width so rotation doesn't spill badly
+  const fontSize = fitFontToWidth(
+    ctx,
+    options.text,
+    preferred,
+    pageW * 0.65,
+  );
+  setWmFont(ctx, fontSize);
+  const textW = Math.max(1, ctx.measureText(options.text).width);
 
   const drawAt = (x: number, y: number) => {
     ctx.save();
@@ -127,17 +168,20 @@ export function applyWatermarkToCanvas(
   };
 
   if (options.layout === "full") {
-    const { cols, rows } = watermarkTileGrid(options.spacing);
-    const stepX = pageW / cols;
-    const stepY = pageH / rows;
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        drawAt(stepX * (col + 0.5), stepY * (row + 0.5));
+    // Step from text size so long phrases don't overlap / run off edges
+    const stepX = Math.max(textW * 1.25, pageW / 3.2) * spacing;
+    const stepY = Math.max(fontSize * 3.4, pageH / 5.5) * spacing;
+    const startX = stepX * 0.5;
+    const startY = stepY * 0.5;
+    for (let y = startY; y < pageH; y += stepY) {
+      for (let x = startX; x < pageW; x += stepX) {
+        drawAt(x, y);
       }
     }
   } else {
     drawAt(pageW / 2, pageH / 2);
   }
+
   ctx.restore();
 }
 
@@ -160,14 +204,13 @@ export async function stampWatermarkOnImage(
 }
 
 /**
- * Transparent PNG overlay matching a page aspect — reliable PDF watermark
- * (jsPDF GState text is often invisible / unsupported).
+ * Transparent PNG overlay matching a page aspect — reliable PDF watermark.
  */
 export async function createWatermarkOverlayDataUrl(
   pageW: number,
   pageH: number,
   options: WatermarkOptions,
-  longEdge = 1600,
+  longEdge = 2000,
 ): Promise<string> {
   const scale = longEdge / Math.max(pageW, pageH, 1);
   const w = Math.max(1, Math.round(pageW * scale));

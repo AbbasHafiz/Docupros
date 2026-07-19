@@ -1,100 +1,86 @@
 "use client";
 
-import { useLayoutEffect, useState, type RefObject } from "react";
+import { useLayoutEffect, useRef, type RefObject } from "react";
 import type { WatermarkOptions } from "@/lib/types";
-import { watermarkTileGrid } from "@/lib/watermark";
+import { applyWatermarkToCanvas } from "@/lib/watermark";
 
 type Props = {
   options: WatermarkOptions;
-  /** Page image — overlay is sized to the painted page, not letterbox bars. */
+  /** Page image — overlay matches its displayed box. */
   imageRef: RefObject<HTMLImageElement | null>;
+  /** Remeasure when page src changes. */
+  imageSrc?: string;
 };
 
-type Box = { left: number; top: number; width: number; height: number };
-
-/** Content box of an object-fit:contain (or shrink-wrapped) image. */
-function pageContentBox(img: HTMLImageElement): Box {
-  const cw = img.clientWidth;
-  const ch = img.clientHeight;
-  const nw = img.naturalWidth || cw;
-  const nh = img.naturalHeight || ch;
-  if (!cw || !ch) return { left: 0, top: 0, width: 0, height: 0 };
-
-  // Shrink-wrapped images already match content; contain may letterbox.
-  const fit = getComputedStyle(img).objectFit;
-  if (fit === "contain" && nw > 0 && nh > 0) {
-    const scale = Math.min(cw / nw, ch / nh);
-    const width = nw * scale;
-    const height = nh * scale;
-    return {
-      left: (cw - width) / 2,
-      top: (ch - height) / 2,
-      width,
-      height,
-    };
-  }
-
-  return { left: 0, top: 0, width: cw, height: ch };
-}
-
-/** Live watermark preview clipped exactly to the page image. */
-export function WatermarkOverlay({ options, imageRef }: Props) {
-  const tiled = options.layout === "full";
-  const grid = tiled ? watermarkTileGrid(options.spacing) : { cols: 1, rows: 1 };
-  const marks = tiled
-    ? Array.from({ length: grid.cols * grid.rows }, (_, i) => i)
-    : [0];
-  const sizeScale = options.size || 1;
-  const [box, setBox] = useState<Box>({ left: 0, top: 0, width: 0, height: 0 });
+/**
+ * Canvas watermark over the page — same drawing as PDF export,
+ * clipped to the page frame so it always shows in-app.
+ */
+export function WatermarkOverlay({ options, imageRef, imageSrc }: Props) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useLayoutEffect(() => {
     const img = imageRef.current;
-    if (!img) return;
+    const canvas = canvasRef.current;
+    if (!img || !canvas) return;
 
-    const update = () => setBox(pageContentBox(img));
-    update();
+    let cancelled = false;
 
-    const ro = new ResizeObserver(update);
-    ro.observe(img);
-    img.addEventListener("load", update);
-    return () => {
-      ro.disconnect();
-      img.removeEventListener("load", update);
+    const paint = () => {
+      if (cancelled) return;
+      const w = img.clientWidth;
+      const h = img.clientHeight;
+      if (w < 2 || h < 2) return;
+
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      canvas.width = Math.max(1, Math.round(w * dpr));
+      canvas.height = Math.max(1, Math.round(h * dpr));
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      applyWatermarkToCanvas(ctx, w, h, options);
     };
-  }, [imageRef, options.layout, options.spacing, options.size]);
 
-  if (box.width < 2 || box.height < 2) return null;
+    paint();
+    // Retry after layout / decode (data-URLs can report 0×0 for a frame)
+    const raf = window.requestAnimationFrame(paint);
+    const t1 = window.setTimeout(paint, 50);
+    const t2 = window.setTimeout(paint, 200);
 
-  // Scale type to page width so long marks stay on the page
-  const basePx = Math.max(10, Math.min(box.width, box.height) / (tiled ? 14 : 9));
-  const fontPx = basePx * sizeScale;
+    const ro = new ResizeObserver(paint);
+    ro.observe(img);
+    if (img.parentElement) ro.observe(img.parentElement);
+    img.addEventListener("load", paint);
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      ro.disconnect();
+      img.removeEventListener("load", paint);
+    };
+  }, [
+    imageRef,
+    imageSrc,
+    options.text,
+    options.color,
+    options.opacity,
+    options.layout,
+    options.angle,
+    options.size,
+    options.spacing,
+  ]);
 
   return (
-    <div
-      className={`page-watermark-overlay ${tiled ? "is-full" : "is-center"}`}
+    <canvas
+      ref={canvasRef}
+      className="page-watermark-overlay"
       aria-hidden
-      style={{
-        left: box.left,
-        top: box.top,
-        width: box.width,
-        height: box.height,
-        ["--wm-color" as string]: options.color,
-        ["--wm-opacity" as string]: String(Math.max(options.opacity, 0.12)),
-        ["--wm-angle" as string]: `${options.angle}deg`,
-        ["--wm-size" as string]: String(sizeScale),
-        ["--wm-cols" as string]: String(grid.cols),
-        ["--wm-rows" as string]: String(grid.rows),
-        ["--wm-font" as string]: `${fontPx}px`,
-      }}
-    >
-      {marks.map((i) => (
-        <span
-          key={i}
-          className={`page-watermark-mark ${tiled ? "is-tiled" : "is-center"}`}
-        >
-          {options.text}
-        </span>
-      ))}
-    </div>
+    />
   );
 }

@@ -376,9 +376,10 @@ export function DocumentViewer({ id }: Props) {
             />
             {pageWatermark && (
               <WatermarkOverlay
-                key={activePage?.id ?? String(active)}
+                key={`${activePage?.id ?? active}-${pageWatermark.text}-${pageWatermark.layout}`}
                 options={pageWatermark}
                 imageRef={pageImageRef}
+                imageSrc={activePage?.imageDataUrl}
               />
             )}
           </div>
