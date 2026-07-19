@@ -18,6 +18,9 @@ import {
 } from "@/lib/pdfConvert";
 import { ShareSheet } from "./ShareSheet";
 import { CnicPrintSheet } from "./CnicPrintSheet";
+import { WatermarkSheet } from "./WatermarkSheet";
+import type { WatermarkOptions } from "@/lib/types";
+import { resolveDocWatermark, watermarkLabel } from "@/lib/watermark";
 
 type Props = { id: string };
 
@@ -43,6 +46,7 @@ export function DocumentViewer({ id }: Props) {
   const [manage, setManage] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [cnicPrintOpen, setCnicPrintOpen] = useState(false);
+  const [watermarkOpen, setWatermarkOpen] = useState(false);
   const [renderStatus, setRenderStatus] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const rerenderedRef = useRef<string | null>(null);
@@ -181,12 +185,18 @@ export function DocumentViewer({ id }: Props) {
     await persist(withUpdate(doc, { title: title.trim() }));
   };
 
-  const setWatermark = async () => {
-    const text = prompt("Watermark text (blank to clear)", doc.watermark ?? "");
-    if (text === null) return;
-    await persist(
-      withUpdate(doc, { watermark: text.trim() || undefined }),
-    );
+  const setWatermark = async (options: WatermarkOptions | null) => {
+    const next = withUpdate(doc, {});
+    if (options) {
+      next.watermark = options.text;
+      next.watermarkOptions = options;
+    } else {
+      delete next.watermark;
+      delete next.watermarkOptions;
+    }
+    await persist(next);
+    setRenderStatus(options ? "Watermark saved" : "Watermark cleared");
+    window.setTimeout(() => setRenderStatus(null), 1800);
   };
 
   const exportPdf = async (a4 = false) => {
@@ -201,7 +211,7 @@ export function DocumentViewer({ id }: Props) {
         .filter((src) => Boolean(src));
       if (!pages.length) throw new Error("No page images to export");
       const blob = await exportDocumentPdf(doc.title, pages, {
-        watermark: doc.watermark,
+        watermark: resolveDocWatermark(doc) ?? doc.watermark,
         a4,
       });
       if (blob.size < 500) throw new Error("PDF export produced an empty file");
@@ -567,9 +577,9 @@ export function DocumentViewer({ id }: Props) {
         <button
           type="button"
           className="btn-secondary"
-          onClick={() => void setWatermark()}
+          onClick={() => setWatermarkOpen(true)}
         >
-          Watermark
+          {watermarkLabel(resolveDocWatermark(doc))}
         </button>
         <button
           type="button"
@@ -600,6 +610,13 @@ export function DocumentViewer({ id }: Props) {
             window.setTimeout(() => setRenderStatus(null), 2500);
           }
         }}
+      />
+
+      <WatermarkSheet
+        doc={doc}
+        open={watermarkOpen}
+        onClose={() => setWatermarkOpen(false)}
+        onSave={setWatermark}
       />
 
       {isId && (

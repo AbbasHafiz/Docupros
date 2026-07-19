@@ -1,6 +1,11 @@
 import { PDFDocument, StandardFonts, rgb, degrees, PDFTextField, PDFCheckBox } from "pdf-lib";
 import { loadImage } from "./imageProcessing";
 import type { DocumentRecord, FormField } from "./types";
+import {
+  normalizeWatermark,
+  parseHexColor,
+  resolveDocWatermark,
+} from "./watermark";
 
 function dataUrlToUint8(dataUrl: string): Uint8Array {
   const base64 = dataUrl.split(",")[1] ?? dataUrl;
@@ -99,19 +104,37 @@ export async function exportFillablePdf(
     }
   }
 
-  if (doc.watermark?.trim()) {
+  const wm = resolveDocWatermark(doc) ?? normalizeWatermark(doc.watermark);
+  if (wm) {
+    const { r, g, b } = parseHexColor(wm.color);
     const pages = pdf.getPages();
     for (const p of pages) {
       const { width, height } = p.getSize();
-      p.drawText(doc.watermark.trim(), {
-        x: width * 0.25,
-        y: height * 0.5,
-        size: 28,
-        font,
-        color: rgb(0.06, 0.46, 0.43),
-        opacity: 0.12,
-        rotate: degrees(35),
-      });
+      const size = Math.max(18, Math.min(width, height) / 14);
+      const draw = (x: number, y: number) => {
+        p.drawText(wm.text, {
+          x,
+          y,
+          size,
+          font,
+          color: rgb(r / 255, g / 255, b / 255),
+          opacity: wm.opacity,
+          rotate: degrees(wm.angle),
+        });
+      };
+      if (wm.layout === "full") {
+        const cols = 3;
+        const rows = 4;
+        const stepX = width / cols;
+        const stepY = height / rows;
+        for (let row = 0; row < rows; row++) {
+          for (let col = 0; col < cols; col++) {
+            draw(stepX * (col + 0.35), stepY * (row + 0.5));
+          }
+        }
+      } else {
+        draw(width * 0.25, height * 0.5);
+      }
     }
   }
 

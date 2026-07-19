@@ -1,4 +1,4 @@
-import { jsPDF, GState } from "jspdf";
+import { jsPDF } from "jspdf";
 import { loadImage } from "./imageProcessing";
 import { printDataUrl } from "./idPrint";
 import {
@@ -7,6 +7,11 @@ import {
   triggerPrintWhenReady,
   writePrintDocument,
 } from "./printWindow";
+import {
+  applyWatermarkToPdfPage,
+  normalizeWatermark,
+  type WatermarkOptions,
+} from "./watermark";
 
 /**
  * Normalize any image data-URL (PNG/WebP/JPEG) to a JPEG data-URL.
@@ -44,14 +49,17 @@ async function toPdfJpeg(
 export async function exportDocumentPdf(
   title: string,
   pageDataUrls: string[],
-  options?: { watermark?: string; a4?: boolean },
+  options?: {
+    watermark?: string | WatermarkOptions;
+    a4?: boolean;
+  },
 ): Promise<Blob> {
   if (pageDataUrls.length === 0) {
     throw new Error("No pages to export");
   }
 
   let pdf: jsPDF | null = null;
-  const watermark = options?.watermark?.trim();
+  const watermark = normalizeWatermark(options?.watermark);
 
   for (const src of pageDataUrls) {
     if (!src) continue;
@@ -84,14 +92,7 @@ export async function exportDocumentPdf(
       const y = (pageH - drawH) / 2;
       pdf.addImage(dataUrl, "JPEG", x, y, drawW, drawH, undefined, "FAST");
       if (watermark) {
-        pdf.setGState(new GState({ opacity: 0.15 }));
-        pdf.setTextColor(15, 118, 110);
-        pdf.setFontSize(28);
-        pdf.text(watermark, pageW / 2, pageH / 2, {
-          align: "center",
-          angle: 35,
-        });
-        pdf.setGState(new GState({ opacity: 1 }));
+        applyWatermarkToPdfPage(pdf, pageW, pageH, watermark, "mm");
       }
     } else {
       const orientation = w >= h ? "l" : "p";
@@ -112,11 +113,7 @@ export async function exportDocumentPdf(
       }
       pdf.addImage(dataUrl, "JPEG", 0, 0, pw, ph, undefined, "FAST");
       if (watermark) {
-        pdf.setGState(new GState({ opacity: 0.14 }));
-        pdf.setTextColor(15, 118, 110);
-        pdf.setFontSize(Math.max(24, Math.round(pw / 18)));
-        pdf.text(watermark, pw / 2, ph / 2, { align: "center", angle: 35 });
-        pdf.setGState(new GState({ opacity: 1 }));
+        applyWatermarkToPdfPage(pdf, pw, ph, watermark, "pt");
       }
     }
   }
