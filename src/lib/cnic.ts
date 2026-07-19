@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import { loadImage } from "./imageProcessing";
 import { composeIdPrintSheet, printDataUrl } from "./idPrint";
+import { openPrintWindow } from "./printWindow";
 
 /** Official NADRA CNIC / ISO ID-1 (CR-80) size */
 export const CNIC_WIDTH_MM = 85.6;
@@ -157,20 +158,31 @@ export async function exportCnicA4Pdf(
 }
 
 export async function printCnic(options: CnicExportOptions) {
-  const sheet = await composeIdPrintSheet({
-    front: options.front,
-    back: options.back,
-    title: options.title ?? "Pakistan CNIC",
-    copies: options.copies ?? 1,
-    includeBack: options.includeBack,
-    fitMode: options.fitMode ?? "fit",
-    watermark: options.watermark,
-    frontLabel: "CNIC Front",
-    backLabel: "CNIC Back",
-    cardWidthMm: CNIC_WIDTH_MM,
-    cardHeightMm: CNIC_HEIGHT_MM,
-  });
-  printDataUrl(sheet, options.title ?? "CNIC Print");
+  const title = options.title ?? "CNIC Print";
+  const w = openPrintWindow(title);
+  try {
+    const sheet = await composeIdPrintSheet({
+      front: options.front,
+      back: options.back,
+      title: options.title ?? "Pakistan CNIC",
+      copies: options.copies ?? 1,
+      includeBack: options.includeBack,
+      fitMode: options.fitMode ?? "fit",
+      watermark: options.watermark,
+      frontLabel: "CNIC Front",
+      backLabel: "CNIC Back",
+      cardWidthMm: CNIC_WIDTH_MM,
+      cardHeightMm: CNIC_HEIGHT_MM,
+    });
+    printDataUrl(sheet, title, w);
+  } catch (err) {
+    try {
+      w.close();
+    } catch {
+      /* ignore */
+    }
+    throw err;
+  }
 }
 
 export function cnicFilename(title: string, kind: "card" | "print" = "card") {

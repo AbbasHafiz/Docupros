@@ -1,5 +1,11 @@
 import { jsPDF } from "jspdf";
 import { loadImage } from "./imageProcessing";
+import {
+  escapeHtml,
+  openPrintWindow,
+  triggerPrintWhenReady,
+  writePrintDocument,
+} from "./printWindow";
 
 /** Pakistani CNIC / NADRA / ISO ID-1 (CR-80) */
 export const ID_WIDTH_MM = 85.6;
@@ -176,12 +182,15 @@ export async function exportIdCardPdf(
 }
 
 /** Print a single A4 sheet at true physical size (one page). */
-export function printDataUrl(dataUrl: string, title = "Print") {
-  const w = window.open("", "_blank", "noopener,noreferrer,width=900,height=1200");
-  if (!w) {
-    throw new Error("Pop-up blocked — allow pop-ups to print");
-  }
-  w.document.write(`<!doctype html><html><head><title>${title}</title>
+export function printDataUrl(
+  dataUrl: string,
+  title = "Print",
+  existingWindow?: Window | null,
+) {
+  const w = existingWindow ?? openPrintWindow(title);
+  writePrintDocument(
+    w,
+    `<!doctype html><html><head><meta charset="utf-8" /><title>${escapeHtml(title)}</title>
     <style>
       @page { size: A4 portrait; margin: 0; }
       html, body {
@@ -207,16 +216,28 @@ export function printDataUrl(dataUrl: string, title = "Print") {
         img { box-shadow: 0 8px 24px rgba(0,0,0,.18); }
       }
     </style></head><body>
-    <img src="${dataUrl}" alt="Print sheet" onload="setTimeout(()=>{window.focus();window.print();},200)" />
-    </body></html>`);
-  w.document.close();
+    <img src="${dataUrl}" alt="Print sheet" />
+    </body></html>`,
+  );
+  triggerPrintWhenReady(w);
 }
 
 export async function printIdCard(options: IdPrintOptions) {
-  const sheet = await composeIdPrintSheet({
-    ...options,
-    frontLabel: options.frontLabel ?? "CNIC Front",
-    backLabel: options.backLabel ?? "CNIC Back",
-  });
-  printDataUrl(sheet, options.title ?? "CNIC Print");
+  const title = options.title ?? "CNIC Print";
+  const w = openPrintWindow(title);
+  try {
+    const sheet = await composeIdPrintSheet({
+      ...options,
+      frontLabel: options.frontLabel ?? "CNIC Front",
+      backLabel: options.backLabel ?? "CNIC Back",
+    });
+    printDataUrl(sheet, title, w);
+  } catch (err) {
+    try {
+      w.close();
+    } catch {
+      /* ignore */
+    }
+    throw err;
+  }
 }
