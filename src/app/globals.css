@@ -1765,7 +1765,7 @@ body.app-shell:has(.doc-view) {
   display: inline-block;
   width: fit-content;
   max-width: 100%;
-  max-height: min(52dvh, 100%);
+  max-height: min(70dvh, 100%);
   line-height: 0;
   overflow: hidden;
   border-radius: 16px;
@@ -1830,7 +1830,7 @@ body.app-shell:has(.doc-view) {
   width: auto;
   height: auto;
   max-width: 100%;
-  max-height: min(52dvh, 100%);
+  max-height: min(70dvh, 100%);
   object-fit: contain;
   border-radius: 0;
   background: #fff;
@@ -1877,11 +1877,11 @@ body.app-shell:has(.doc-view) {
   }
 
   .doc-page-frame {
-    max-height: min(58dvh, 100%);
+    max-height: min(78dvh, 100%);
   }
 
   .doc-page-image {
-    max-height: min(58dvh, 100%);
+    max-height: min(78dvh, 100%);
   }
 }
 
