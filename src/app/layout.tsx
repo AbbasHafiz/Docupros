@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Figtree, Syne } from "next/font/google";
 import { BottomNav } from "@/components/BottomNav";
+import { SiteCredit } from "@/components/SiteCredit";
 import "./globals.css";
 
 const syne = Syne({
@@ -18,8 +19,10 @@ const figtree = Figtree({
 export const metadata: Metadata = {
   title: "Docupros — Document Scanner",
   description:
-    "Scan documents with your camera, crop edges, enhance pages, extract text, and export PDFs.",
+    "Scan documents with your camera, crop edges, enhance pages, extract text, and export PDFs. This tool developed by Hafiz Abbas.",
   applicationName: "Docupros",
+  authors: [{ name: "Hafiz Abbas" }],
+  creator: "Hafiz Abbas",
   appleWebApp: {
     capable: true,
     title: "Docupros",
@@ -44,6 +47,7 @@ export default function RootLayout({
     <html lang="en" className={`${syne.variable} ${figtree.variable} h-full`}>
       <body className="app-shell antialiased">
         {children}
+        <SiteCredit />
         <BottomNav />
       </body>
     </html>

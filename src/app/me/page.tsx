@@ -17,6 +17,7 @@ export default function MePage() {
           Local-first CamScanner-style scanner: capture, enhance, edit, form
           fill, convert, print, collage, and lock documents in your browser.
         </p>
+        <p className="developer-credit">This tool developed by Hafiz Abbas</p>
         <div className="row-actions" style={{ marginTop: "0.75rem" }}>
           <Link href="/tools" className="btn-secondary">
             Open Tools
