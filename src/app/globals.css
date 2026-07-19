@@ -702,9 +702,12 @@ body.app-shell:has(.doc-view) {
   border: 1px solid #d1d5db;
   overflow: hidden;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(4, 1fr);
   place-items: center;
+}
+
+.watermark-preview-page.is-full {
+  grid-template-columns: repeat(var(--wm-cols, 3), 1fr);
+  grid-template-rows: repeat(var(--wm-rows, 4), 1fr);
 }
 
 .watermark-preview-mark {
@@ -712,7 +715,7 @@ body.app-shell:has(.doc-view) {
   opacity: var(--wm-opacity, 0.16);
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 0.72rem;
+  font-size: calc(0.72rem * var(--wm-size, 1));
   letter-spacing: 0.04em;
   text-transform: uppercase;
   transform: rotate(calc(-1 * var(--wm-angle, 35deg)));
@@ -726,9 +729,13 @@ body.app-shell:has(.doc-view) {
   inset: 0;
   display: grid;
   place-items: center;
-  font-size: 1rem;
+  font-size: calc(1rem * var(--wm-size, 1));
   grid-column: 1 / -1;
   grid-row: 1 / -1;
+}
+
+.field.is-dimmed {
+  opacity: 0.45;
 }
 
 
@@ -1653,8 +1660,8 @@ body.app-shell:has(.doc-view) {
 
 .page-watermark-overlay.is-full {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(4, 1fr);
+  grid-template-columns: repeat(var(--wm-cols, 3), 1fr);
+  grid-template-rows: repeat(var(--wm-rows, 4), 1fr);
   place-items: center;
 }
 
@@ -1663,7 +1670,7 @@ body.app-shell:has(.doc-view) {
   opacity: var(--wm-opacity, 0.28);
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(0.85rem, 4.2vw, 1.55rem);
+  font-size: calc(clamp(0.85rem, 4.2vw, 1.55rem) * var(--wm-size, 1));
   letter-spacing: 0.04em;
   text-transform: uppercase;
   transform: rotate(calc(-1 * var(--wm-angle, 35deg)));
@@ -1677,7 +1684,7 @@ body.app-shell:has(.doc-view) {
   inset: 0;
   display: grid;
   place-items: center;
-  font-size: clamp(1.1rem, 6vw, 2.1rem);
+  font-size: calc(clamp(1.1rem, 6vw, 2.1rem) * var(--wm-size, 1));
 }
 
 .doc-page-image {

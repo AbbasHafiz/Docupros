@@ -5,6 +5,7 @@ import {
   normalizeWatermark,
   parseHexColor,
   resolveDocWatermark,
+  watermarkTileGrid,
 } from "./watermark";
 
 function dataUrlToUint8(dataUrl: string): Uint8Array {
@@ -110,7 +111,8 @@ export async function exportFillablePdf(
     const pages = pdf.getPages();
     for (const p of pages) {
       const { width, height } = p.getSize();
-      const size = Math.max(18, Math.min(width, height) / 14);
+      const base = Math.max(18, Math.min(width, height) / 14);
+      const size = Math.max(10, base * (wm.size || 1));
       const draw = (x: number, y: number) => {
         p.drawText(wm.text, {
           x,
@@ -123,8 +125,7 @@ export async function exportFillablePdf(
         });
       };
       if (wm.layout === "full") {
-        const cols = 3;
-        const rows = 4;
+        const { cols, rows } = watermarkTileGrid(wm.spacing);
         const stepX = width / cols;
         const stepY = height / rows;
         for (let row = 0; row < rows; row++) {
