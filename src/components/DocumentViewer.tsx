@@ -51,6 +51,7 @@ export function DocumentViewer({ id }: Props) {
   const [renderStatus, setRenderStatus] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const rerenderedRef = useRef<string | null>(null);
+  const pageImageRef = useRef<HTMLImageElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -368,11 +369,18 @@ export function DocumentViewer({ id }: Props) {
           <div className="doc-page-frame">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+              ref={pageImageRef}
               src={activePage?.imageDataUrl}
               alt={`Page ${active + 1}`}
               className="doc-page-image"
             />
-            {pageWatermark && <WatermarkOverlay options={pageWatermark} />}
+            {pageWatermark && (
+              <WatermarkOverlay
+                key={activePage?.id ?? String(active)}
+                options={pageWatermark}
+                imageRef={pageImageRef}
+              />
+            )}
           </div>
         </div>
 
