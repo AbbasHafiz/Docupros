@@ -11,8 +11,9 @@ import {
   applyFilter,
   defaultIdQuad,
   defaultQuad,
-  detectDocumentQuad,
+  detectDocumentQuadDetailed,
   loadImage,
+  tightQuad,
   warpPerspective,
 } from "@/lib/imageProcessing";
 import { rotateImage } from "@/lib/editOperations";
@@ -83,7 +84,11 @@ export function ScanFlow({
     };
   }, [appendToId]);
 
-  const beginWithImage = async (dataUrl: string, liveQuad?: Quad) => {
+  const beginWithImage = async (
+    dataUrl: string,
+    liveQuad?: Quad,
+    options?: { autoCrop?: boolean },
+  ) => {
     if (appendToId && !appendReady) return;
     setBusy(true);
     setRawImage(dataUrl);
@@ -92,11 +97,40 @@ export function ScanFlow({
       const fallback = isId
         ? defaultIdQuad(img.naturalWidth, img.naturalHeight)
         : defaultQuad(img.naturalWidth, img.naturalHeight);
+
+      // Gallery / upload: detect edges at higher res and apply crop automatically
+      if (options?.autoCrop) {
+        const detected = await detectDocumentQuadDetailed(dataUrl, 800);
+        const q =
+          detected.found && detected.confidence >= 0.28
+            ? detected.quad
+            : isId
+              ? fallback
+              : // Already-cropped gallery photos often fill the frame
+                tightQuad(detected.width, detected.height);
+        setQuad(q);
+        let warped = await warpPerspective(dataUrl, q);
+        if (isId) {
+          warped = await normalizeToCnicAspect(warped);
+        }
+        setCropped(warped);
+        const next: Partial<Record<ScanFilter, string>> = { original: warped };
+        await Promise.all(
+          SCAN_FILTERS.filter((f) => f.id !== "original").map(async (f) => {
+            next[f.id] = await applyFilter(warped, f.id);
+          }),
+        );
+        setPreviews(next);
+        setFilter(defaultFilter);
+        setStep("enhance");
+        return;
+      }
+
       if (liveQuad && !isId) {
         setQuad(liveQuad);
       } else {
-        const detected = await detectDocumentQuad(dataUrl);
-        setQuad(detected ?? fallback);
+        const detected = await detectDocumentQuadDetailed(dataUrl);
+        setQuad(detected.found ? detected.quad : fallback);
       }
       setStep("crop");
     } finally {
@@ -110,11 +144,11 @@ export function ScanFlow({
     setBusy(true);
     try {
       const img = await loadImage(image);
-      const detected = await detectDocumentQuad(image);
+      const detected = await detectDocumentQuadDetailed(image);
       const fallback = isId
         ? defaultIdQuad(img.naturalWidth, img.naturalHeight)
         : defaultQuad(img.naturalWidth, img.naturalHeight);
-      setQuad(detected ?? fallback);
+      setQuad(detected.found ? detected.quad : fallback);
     } finally {
       setBusy(false);
     }
@@ -127,11 +161,11 @@ export function ScanFlow({
       const rotated = await rotateImage(rawImage, degrees);
       setRawImage(rotated);
       const img = await loadImage(rotated);
-      const detected = await detectDocumentQuad(rotated);
+      const detected = await detectDocumentQuadDetailed(rotated);
       const fallback = isId
         ? defaultIdQuad(img.naturalWidth, img.naturalHeight)
         : defaultQuad(img.naturalWidth, img.naturalHeight);
-      setQuad(detected ?? fallback);
+      setQuad(detected.found ? detected.quad : fallback);
     } finally {
       setBusy(false);
     }
@@ -383,7 +417,7 @@ export function ScanFlow({
           )}
           <CameraCapture
             onCapture={(src, liveQuad) => void beginWithImage(src, liveQuad)}
-            onUpload={(src) => void beginWithImage(src)}
+            onUpload={(src) => void beginWithImage(src, undefined, { autoCrop: true })}
             guide={isId ? "cnic" : "document"}
             guideLabel={
               isId
