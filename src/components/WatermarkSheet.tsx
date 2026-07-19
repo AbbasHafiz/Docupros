@@ -134,125 +134,7 @@ export function WatermarkSheet({ doc, open, onClose, onSave }: Props) {
           </button>
         </div>
 
-        <p className="hint share-hint">
-          Shown on the page preview right away, and included in PDF export,
-          print, and share. Resize text and adjust spacing for full-page tiles.
-        </p>
-
         {error && <p className="share-error">{error}</p>}
-
-        <label className="field">
-          <span>Text</span>
-          <input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="e.g. CONFIDENTIAL"
-            maxLength={80}
-            disabled={busy}
-          />
-        </label>
-
-        <div className="cnic-option-group">
-          <p className="subhead">Placement</p>
-          <div className="cnic-option-row">
-            <button
-              type="button"
-              className={`btn-secondary ${layout === "center" ? "is-active-btn" : ""}`}
-              disabled={busy}
-              onClick={() => setLayout("center")}
-            >
-              Center
-            </button>
-            <button
-              type="button"
-              className={`btn-secondary ${layout === "full" ? "is-active-btn" : ""}`}
-              disabled={busy}
-              onClick={() => setLayout("full")}
-            >
-              Full page
-            </button>
-          </div>
-        </div>
-
-        <div className="cnic-option-group">
-          <p className="subhead">Color</p>
-          <div className="watermark-color-row">
-            {PRESET_COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                className={`watermark-swatch ${color === c ? "is-active" : ""}`}
-                style={{ background: c }}
-                aria-label={`Color ${c}`}
-                disabled={busy}
-                onClick={() => setColor(c)}
-              />
-            ))}
-            <label className="watermark-custom-color" title="Custom color">
-              <input
-                type="color"
-                value={color.startsWith("#") ? color : "#0f766e"}
-                disabled={busy}
-                onChange={(e) => setColor(e.target.value)}
-              />
-            </label>
-          </div>
-        </div>
-
-        <label className="field">
-          <span>Size · {Math.round(size * 100)}%</span>
-          <input
-            type="range"
-            min={0.4}
-            max={2.5}
-            step={0.05}
-            value={size}
-            disabled={busy}
-            onChange={(e) => setSize(Number(e.target.value))}
-          />
-        </label>
-
-        <label className={`field ${layout !== "full" ? "is-dimmed" : ""}`}>
-          <span>
-            Spacing · {Math.round(spacing * 100)}%
-            {layout !== "full" ? " (full page)" : ""}
-          </span>
-          <input
-            type="range"
-            min={0.5}
-            max={2.5}
-            step={0.05}
-            value={spacing}
-            disabled={busy || layout !== "full"}
-            onChange={(e) => setSpacing(Number(e.target.value))}
-          />
-        </label>
-
-        <label className="field">
-          <span>Opacity · {Math.round(opacity * 100)}%</span>
-          <input
-            type="range"
-            min={0.08}
-            max={0.55}
-            step={0.01}
-            value={opacity}
-            disabled={busy}
-            onChange={(e) => setOpacity(Number(e.target.value))}
-          />
-        </label>
-
-        <label className="field">
-          <span>Angle · {angle}°</span>
-          <input
-            type="range"
-            min={-60}
-            max={60}
-            step={1}
-            value={angle}
-            disabled={busy}
-            onChange={(e) => setAngle(Number(e.target.value))}
-          />
-        </label>
 
         <div
           className="watermark-preview"
@@ -284,14 +166,130 @@ export function WatermarkSheet({ doc, open, onClose, onSave }: Props) {
           </div>
         </div>
 
-        <div className="step-actions stacked" style={{ marginTop: "0.75rem" }}>
+        <label className="field watermark-field">
+          <span>Text</span>
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="e.g. CONFIDENTIAL"
+            maxLength={80}
+            disabled={busy}
+          />
+        </label>
+
+        <div className="watermark-compact-row">
+          <div className="cnic-option-group watermark-group">
+            <p className="subhead">Place</p>
+            <div className="cnic-option-row">
+              <button
+                type="button"
+                className={`btn-secondary watermark-chip ${layout === "center" ? "is-active-btn" : ""}`}
+                disabled={busy}
+                onClick={() => setLayout("center")}
+              >
+                Center
+              </button>
+              <button
+                type="button"
+                className={`btn-secondary watermark-chip ${layout === "full" ? "is-active-btn" : ""}`}
+                disabled={busy}
+                onClick={() => setLayout("full")}
+              >
+                Full
+              </button>
+            </div>
+          </div>
+
+          <div className="cnic-option-group watermark-group">
+            <p className="subhead">Color</p>
+            <div className="watermark-color-row">
+              {PRESET_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className={`watermark-swatch ${color === c ? "is-active" : ""}`}
+                  style={{ background: c }}
+                  aria-label={`Color ${c}`}
+                  disabled={busy}
+                  onClick={() => setColor(c)}
+                />
+              ))}
+              <label className="watermark-custom-color" title="Custom color">
+                <input
+                  type="color"
+                  value={color.startsWith("#") ? color : "#0f766e"}
+                  disabled={busy}
+                  onChange={(e) => setColor(e.target.value)}
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div className="watermark-sliders">
+          <label className="field watermark-field">
+            <span>Size · {Math.round(size * 100)}%</span>
+            <input
+              type="range"
+              min={0.4}
+              max={2.5}
+              step={0.05}
+              value={size}
+              disabled={busy}
+              onChange={(e) => setSize(Number(e.target.value))}
+            />
+          </label>
+
+          <label
+            className={`field watermark-field ${layout !== "full" ? "is-dimmed" : ""}`}
+          >
+            <span>Space · {Math.round(spacing * 100)}%</span>
+            <input
+              type="range"
+              min={0.5}
+              max={2.5}
+              step={0.05}
+              value={spacing}
+              disabled={busy || layout !== "full"}
+              onChange={(e) => setSpacing(Number(e.target.value))}
+            />
+          </label>
+
+          <label className="field watermark-field">
+            <span>Opacity · {Math.round(opacity * 100)}%</span>
+            <input
+              type="range"
+              min={0.08}
+              max={0.55}
+              step={0.01}
+              value={opacity}
+              disabled={busy}
+              onChange={(e) => setOpacity(Number(e.target.value))}
+            />
+          </label>
+
+          <label className="field watermark-field">
+            <span>Angle · {angle}°</span>
+            <input
+              type="range"
+              min={-60}
+              max={60}
+              step={1}
+              value={angle}
+              disabled={busy}
+              onChange={(e) => setAngle(Number(e.target.value))}
+            />
+          </label>
+        </div>
+
+        <div className="watermark-actions">
           <button
             type="button"
             className="btn-primary"
             disabled={busy}
             onClick={() => void save(false)}
           >
-            {busy ? "Saving…" : "Save watermark"}
+            {busy ? "Saving…" : "Save"}
           </button>
           <button
             type="button"
@@ -299,7 +297,7 @@ export function WatermarkSheet({ doc, open, onClose, onSave }: Props) {
             disabled={busy}
             onClick={() => void save(true)}
           >
-            Clear watermark
+            Clear
           </button>
         </div>
       </div>
