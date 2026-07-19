@@ -1765,15 +1765,20 @@ body.app-shell:has(.doc-view) {
 
 .doc-stage {
   flex: 1;
-  min-height: 8rem;
+  min-height: 10rem;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 0.65rem 1.1rem 0.35rem;
   max-width: 960px;
   width: 100%;
   margin: 0 auto;
-  overflow: hidden;
+  /* Always allow vertical + horizontal pan to inspect watermark / full page */
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
+  max-height: min(72dvh, 100%);
 }
 
 .doc-zoom-bar {
@@ -1783,15 +1788,15 @@ body.app-shell:has(.doc-view) {
   margin: 0 auto;
   background: transparent;
   padding: 0.35rem 0.75rem 0;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.doc-zoom-bar .cs-zoom-hint {
+  flex: 1 1 auto;
 }
 
 .doc-stage.is-zoomed {
-  display: block;
-  overflow: auto;
-  overscroll-behavior: contain;
-  touch-action: pan-x pan-y;
-  -webkit-overflow-scrolling: touch;
-  max-height: min(70dvh, 100%);
   align-items: flex-start;
   justify-content: flex-start;
 }
@@ -1806,7 +1811,7 @@ body.app-shell:has(.doc-view) {
   display: inline-block;
   width: fit-content;
   max-width: 100%;
-  max-height: min(70dvh, 100%);
+  max-height: none;
   line-height: 0;
   overflow: hidden;
   border-radius: 16px;
@@ -1816,7 +1821,7 @@ body.app-shell:has(.doc-view) {
 }
 
 .doc-page-frame .doc-page-image {
-  max-height: inherit;
+  max-height: none;
 }
 
 .page-watermark-overlay {
@@ -1829,10 +1834,6 @@ body.app-shell:has(.doc-view) {
   display: block;
   border-radius: inherit;
   overflow: hidden;
-  /* Query size from the positioned overlay — never on the frame
-     (container-type:size on the frame collapses the page image). */
-  container-type: size;
-  container-name: page-watermark;
 }
 
 .page-watermark-overlay.is-css.is-full {
@@ -1844,11 +1845,11 @@ body.app-shell:has(.doc-view) {
 
 .page-watermark-mark {
   color: var(--wm-color, #0f766e);
-  opacity: var(--wm-opacity, 0.32);
+  opacity: var(--wm-opacity, 0.38);
   font-family: var(--font-display);
   font-weight: 800;
-  /* Scale with page frame so the mark is obvious on phone previews */
-  font-size: calc(4.2cqw * var(--wm-size, 1));
+  /* Rem sizing — reliable on every phone (cqw was collapsing to 0) */
+  font-size: calc(0.95rem * var(--wm-size, 1));
   letter-spacing: 0.03em;
   text-transform: uppercase;
   transform: rotate(calc(-1 * var(--wm-angle, 35deg)));
@@ -1857,6 +1858,7 @@ body.app-shell:has(.doc-view) {
   overflow: hidden;
   text-align: center;
   user-select: none;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.55);
 }
 
 .page-watermark-mark.is-center {
@@ -1864,18 +1866,8 @@ body.app-shell:has(.doc-view) {
   inset: 0;
   display: grid;
   place-items: center;
-  font-size: calc(9cqw * var(--wm-size, 1));
+  font-size: calc(1.55rem * var(--wm-size, 1));
   max-width: none;
-}
-
-@supports not (font-size: 1cqw) {
-  .page-watermark-mark {
-    font-size: calc(0.85rem * var(--wm-size, 1));
-  }
-
-  .page-watermark-mark.is-center {
-    font-size: calc(1.45rem * var(--wm-size, 1));
-  }
 }
 
 .doc-page-image {
@@ -1883,7 +1875,8 @@ body.app-shell:has(.doc-view) {
   width: auto;
   height: auto;
   max-width: 100%;
-  max-height: min(70dvh, 100%);
+  /* Allow tall pages to extend; stage scrolls vertically */
+  max-height: none;
   object-fit: contain;
   border-radius: 0;
   background: #fff;
@@ -1929,11 +1922,7 @@ body.app-shell:has(.doc-view) {
     max-height: none;
   }
 
-  .doc-page-frame {
-    max-height: min(78dvh, 100%);
-  }
-
-  .doc-page-image {
+  .doc-stage {
     max-height: min(78dvh, 100%);
   }
 }
