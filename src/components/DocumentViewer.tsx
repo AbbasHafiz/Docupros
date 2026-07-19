@@ -21,7 +21,11 @@ import { CnicPrintSheet } from "./CnicPrintSheet";
 import { WatermarkSheet } from "./WatermarkSheet";
 import { WatermarkOverlay } from "./WatermarkOverlay";
 import type { WatermarkOptions } from "@/lib/types";
-import { resolveDocWatermark, watermarkLabel } from "@/lib/watermark";
+import {
+  resolveDocWatermark,
+  stampWatermarkOnImage,
+  watermarkLabel,
+} from "@/lib/watermark";
 
 type Props = { id: string };
 
@@ -50,17 +54,20 @@ export function DocumentViewer({ id }: Props) {
   const [watermarkOpen, setWatermarkOpen] = useState(false);
   const [renderStatus, setRenderStatus] = useState<string | null>(null);
   const [pageZoom, setPageZoom] = useState(1);
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
   const [watermarkDraft, setWatermarkDraft] = useState<WatermarkOptions | null>(
     null,
   );
   const [, startTransition] = useTransition();
   const rerenderedRef = useRef<string | null>(null);
   const pageImageRef = useRef<HTMLImageElement | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(
     null,
   );
 
-  const clampPageZoom = (z: number) => Math.min(4, Math.max(1, z));
+  /** 50%–400% so users can zoom out (fit more vertically) and in */
+  const clampPageZoom = (z: number) => Math.min(4, Math.max(0.5, z));
 
   const pinchDistance = (a: React.Touch, b: React.Touch) =>
     Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
@@ -134,6 +141,54 @@ export function DocumentViewer({ id }: Props) {
   useEffect(() => {
     setPageZoom(1);
   }, [active, doc?.pages[active]?.id]);
+
+  // Bake watermark into the on-screen preview (matches export look & feel)
+  useEffect(() => {
+    if (!doc) return;
+    const src = doc.pages[active]?.imageDataUrl;
+    if (!src) {
+      setPreviewSrc(null);
+      return;
+    }
+    const wm = watermarkDraft ?? resolveDocWatermark(doc);
+    if (!wm) {
+      setPreviewSrc(src);
+      return;
+    }
+
+    let cancelled = false;
+    setPreviewSrc(src);
+    setRenderStatus("Applying watermark preview…");
+    void stampWatermarkOnImage(src, wm)
+      .then((stamped) => {
+        if (cancelled) return;
+        setPreviewSrc(stamped);
+        setRenderStatus(null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // Keep original + CSS overlay fallback
+        setPreviewSrc(src);
+        setRenderStatus(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    active,
+    doc,
+    watermarkDraft,
+    doc?.pages[active]?.imageDataUrl,
+    doc?.watermark,
+    doc?.watermarkOptions?.text,
+    doc?.watermarkOptions?.color,
+    doc?.watermarkOptions?.opacity,
+    doc?.watermarkOptions?.layout,
+    doc?.watermarkOptions?.angle,
+    doc?.watermarkOptions?.size,
+    doc?.watermarkOptions?.spacing,
+  ]);
 
   if (doc === undefined) {
     return <div className="center-pad muted">Loading…</div>;
@@ -390,7 +445,7 @@ export function DocumentViewer({ id }: Props) {
           <button
             type="button"
             className="cs-zoom-btn"
-            disabled={pageZoom <= 1}
+            disabled={pageZoom <= 0.5}
             onClick={() => setPageZoom((z) => clampPageZoom(z - 0.25))}
             aria-label="Zoom out"
           >
@@ -400,7 +455,7 @@ export function DocumentViewer({ id }: Props) {
             type="button"
             className="cs-zoom-pct"
             onClick={() => setPageZoom(1)}
-            aria-label="Reset zoom"
+            aria-label="Reset zoom to 100%"
           >
             {Math.round(pageZoom * 100)}%
           </button>
@@ -413,12 +468,38 @@ export function DocumentViewer({ id }: Props) {
           >
             +
           </button>
-          {pageZoom <= 1.05 && (
-            <span className="cs-zoom-hint">Pinch to check full page</span>
-          )}
+          <button
+            type="button"
+            className="mini-chip"
+            onClick={() => {
+              // Fit full page height into the stage (vertical zoom)
+              const stage = stageRef.current;
+              const img = pageImageRef.current;
+              if (!stage || !img?.naturalWidth) {
+                setPageZoom(0.75);
+                return;
+              }
+              const stageW = Math.max(1, stage.clientWidth - 24);
+              const stageH = Math.max(1, stage.clientHeight - 8);
+              const heightAt100 =
+                (img.naturalHeight / img.naturalWidth) * stageW;
+              const z = stageH / Math.max(1, heightAt100);
+              setPageZoom(clampPageZoom(Math.min(Math.max(z, 0.5), 1)));
+              stage.scrollTop = 0;
+              stage.scrollLeft = 0;
+            }}
+            aria-label="Fit page height"
+            title="Fit vertical"
+          >
+            Fit V
+          </button>
+          <span className="cs-zoom-hint">
+            Pinch · scroll vertically to check watermark
+          </span>
         </div>
         <div
-          className={`doc-stage ${pageZoom > 1 ? "is-zoomed" : ""}`}
+          ref={stageRef}
+          className={`doc-stage ${pageZoom !== 1 ? "is-zoomed" : ""}`}
           onTouchStart={(e) => {
             if (e.touches.length === 2) {
               pinchRef.current = {
@@ -446,36 +527,31 @@ export function DocumentViewer({ id }: Props) {
         >
           <div
             className="doc-page-frame"
-            style={
-              pageZoom > 1
-                ? {
-                    width: `${Math.round(pageZoom * 100)}%`,
-                    maxWidth: "none",
-                    maxHeight: "none",
-                  }
-                : undefined
-            }
+            style={{
+              width: `${Math.round(pageZoom * 100)}%`,
+              maxWidth: pageZoom <= 1 ? "100%" : "none",
+              maxHeight: "none",
+            }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               ref={pageImageRef}
-              src={activePage?.imageDataUrl}
+              src={previewSrc ?? activePage?.imageDataUrl}
               alt={`Page ${active + 1}`}
               className="doc-page-image"
-              style={
-                pageZoom > 1
-                  ? {
-                      width: "100%",
-                      height: "auto",
-                      maxWidth: "none",
-                      maxHeight: "none",
-                    }
-                  : undefined
-              }
+              style={{
+                width: "100%",
+                height: "auto",
+                maxWidth: "none",
+                maxHeight: "none",
+              }}
             />
-            {visibleWatermark && (
-              <WatermarkOverlay options={visibleWatermark} />
-            )}
+            {/* CSS overlay while baking, or if bake failed — always show when watermark on */}
+            {visibleWatermark &&
+              (!previewSrc ||
+                previewSrc === activePage?.imageDataUrl) && (
+                <WatermarkOverlay options={visibleWatermark} />
+              )}
           </div>
         </div>
 

@@ -8,8 +8,8 @@ type Props = {
 };
 
 /**
- * Always-visible CSS watermark covering the page frame (inset: 0).
- * Shown on the document preview so look & feel can be checked before export.
+ * Instant CSS watermark on the page frame.
+ * Uses rem sizing (not container queries) so it never collapses to 0px.
  */
 export function WatermarkOverlay({ options }: Props) {
   const tiled = options.layout === "full";
@@ -22,9 +22,11 @@ export function WatermarkOverlay({ options }: Props) {
       className={`page-watermark-overlay is-css ${tiled ? "is-full" : "is-center"}`}
       aria-hidden
       style={{
-        ["--wm-color" as string]: options.color,
-        ["--wm-opacity" as string]: String(Math.max(0.28, options.opacity)),
-        ["--wm-angle" as string]: `${options.angle}deg`,
+        ["--wm-color" as string]: options.color || "#0f766e",
+        ["--wm-opacity" as string]: String(
+          Math.max(0.34, Math.min(0.7, options.opacity || 0.34)),
+        ),
+        ["--wm-angle" as string]: `${options.angle ?? 35}deg`,
         ["--wm-size" as string]: String(sizeScale),
         ["--wm-cols" as string]: String(grid.cols),
         ["--wm-rows" as string]: String(grid.rows),
