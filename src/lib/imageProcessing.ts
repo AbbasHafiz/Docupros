@@ -237,7 +237,17 @@ export type LiveDetectResult = {
   quad: Quad;
 };
 
-/** Tight full-frame quad — used when a gallery photo is already edge-to-edge. */
+/** Zero-inset full page — preserves every pixel (A4 / legal scans). */
+export function fullQuad(width: number, height: number): Quad {
+  return {
+    tl: { x: 0, y: 0 },
+    tr: { x: width, y: 0 },
+    br: { x: width, y: height },
+    bl: { x: 0, y: height },
+  };
+}
+
+/** Tight full-frame quad — tiny inset for noisy camera edges. */
 export function tightQuad(width: number, height: number): Quad {
   const inset = Math.max(1, Math.round(Math.min(width, height) * 0.004));
   return {
@@ -246,6 +256,27 @@ export function tightQuad(width: number, height: number): Quad {
     br: { x: width - inset, y: height - inset },
     bl: { x: inset, y: height - inset },
   };
+}
+
+/** A4 (~1.41), Letter (~1.29), Legal (~1.65) portrait/landscape pages. */
+export function isA4LikeAspect(width: number, height: number): boolean {
+  const long = Math.max(width, height);
+  const short = Math.max(1, Math.min(width, height));
+  const ratio = long / short;
+  return ratio >= 1.25 && ratio <= 1.72;
+}
+
+/** True when the quad already covers (almost) the whole image. */
+export function quadCoversPage(
+  quad: Quad,
+  width: number,
+  height: number,
+  minRatio = 0.92,
+): boolean {
+  const bounds = outputSizeFromQuad(quad);
+  const area =
+    (bounds.width * bounds.height) / Math.max(1, width * height);
+  return area >= minRatio;
 }
 
 export type DetectDetailed = LiveDetectResult & {

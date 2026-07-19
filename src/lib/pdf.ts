@@ -21,7 +21,7 @@ import {
  */
 async function toPdfJpeg(
   src: string,
-  maxSide = 2400,
+  maxSide = 3300,
 ): Promise<{ dataUrl: string; w: number; h: number }> {
   const img = await loadImage(src);
   let w = img.naturalWidth || 1;
@@ -41,7 +41,7 @@ async function toPdfJpeg(
   ctx.drawImage(img, 0, 0, w, h);
 
   return {
-    dataUrl: canvas.toDataURL("image/jpeg", 0.92),
+    dataUrl: canvas.toDataURL("image/jpeg", 0.93),
     w,
     h,
   };
@@ -82,16 +82,22 @@ export async function exportDocumentPdf(
       const pageH = pdf.internal.pageSize.getHeight();
       const imgRatio = w / h;
       const pageRatio = pageW / pageH;
-      let drawW = pageW;
-      let drawH = pageH;
-      if (imgRatio > pageRatio) {
-        drawH = pageW / imgRatio;
+      // Full A4/legal scans → fill the PDF page edge-to-edge
+      const nearA4 = Math.abs(imgRatio - pageRatio) / pageRatio < 0.1;
+      if (nearA4) {
+        pdf.addImage(dataUrl, "JPEG", 0, 0, pageW, pageH, undefined, "FAST");
       } else {
-        drawW = pageH * imgRatio;
+        let drawW = pageW;
+        let drawH = pageH;
+        if (imgRatio > pageRatio) {
+          drawH = pageW / imgRatio;
+        } else {
+          drawW = pageH * imgRatio;
+        }
+        const x = (pageW - drawW) / 2;
+        const y = (pageH - drawH) / 2;
+        pdf.addImage(dataUrl, "JPEG", x, y, drawW, drawH, undefined, "FAST");
       }
-      const x = (pageW - drawW) / 2;
-      const y = (pageH - drawH) / 2;
-      pdf.addImage(dataUrl, "JPEG", x, y, drawW, drawH, undefined, "FAST");
       if (watermark) {
         await applyWatermarkToPdfPage(pdf, pageW, pageH, watermark, "mm");
       }

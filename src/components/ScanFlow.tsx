@@ -12,9 +12,11 @@ import {
   defaultIdQuad,
   defaultQuad,
   detectDocumentQuadDetailed,
+  fullQuad,
+  isA4LikeAspect,
   loadImage,
   outputSizeFromQuad,
-  tightQuad,
+  quadCoversPage,
   warpPerspective,
 } from "@/lib/imageProcessing";
 import { rotateImage } from "@/lib/editOperations";
@@ -114,27 +116,28 @@ export function ScanFlow({
     setFromGallery(Boolean(options?.fromGallery));
     try {
       const img = await loadImage(dataUrl);
-      const fallback = isId
-        ? defaultIdQuad(img.naturalWidth, img.naturalHeight)
-        : defaultQuad(img.naturalWidth, img.naturalHeight);
-      const full = isId
-        ? defaultIdQuad(img.naturalWidth, img.naturalHeight)
-        : tightQuad(img.naturalWidth, img.naturalHeight);
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      const fallback = isId ? defaultIdQuad(w, h) : defaultQuad(w, h);
+      // Full A4/legal pages are the normal case — keep every pixel
+      const full = isId ? defaultIdQuad(w, h) : fullQuad(w, h);
 
-      // Gallery / upload: load full document by default when it already fills
-      // the frame; never skip the crop step so the user can choose.
       if (options?.fromGallery) {
-        const detected = await detectDocumentQuadDetailed(dataUrl, 800);
         let q = full;
-        if (detected.found && detected.confidence >= 0.35) {
-          const bounds = outputSizeFromQuad(detected.quad);
-          const areaRatio =
-            (bounds.width * bounds.height) /
-            Math.max(1, detected.width * detected.height);
-          // Small document in a bigger photo → suggest edge crop
-          // Large / already full-page scan → keep full size
-          if (areaRatio < 0.82) {
-            q = detected.quad;
+        // Only suggest an edge crop when a smaller document sits in a larger photo
+        if (!isId) {
+          const detected = await detectDocumentQuadDetailed(dataUrl, 1200);
+          if (detected.found && detected.confidence >= 0.4) {
+            const bounds = outputSizeFromQuad(detected.quad);
+            const areaRatio =
+              (bounds.width * bounds.height) /
+              Math.max(1, detected.width * detected.height);
+            const a4Page = isA4LikeAspect(detected.width, detected.height);
+            // Full-page A4 scans almost always fill the frame — never auto-trim them
+            const cropThreshold = a4Page ? 0.6 : 0.68;
+            if (areaRatio < cropThreshold) {
+              q = detected.quad;
+            }
           }
         }
         setQuad(q);
@@ -146,7 +149,12 @@ export function ScanFlow({
         setQuad(liveQuad);
       } else {
         const detected = await detectDocumentQuadDetailed(dataUrl);
-        setQuad(detected.found ? detected.quad : fallback);
+        if (!isId && detected.found && isA4LikeAspect(w, h)) {
+          const covers = quadCoversPage(detected.quad, w, h, 0.85);
+          setQuad(covers ? full : detected.quad);
+        } else {
+          setQuad(detected.found ? detected.quad : fallback);
+        }
       }
       setStep("crop");
     } finally {
@@ -193,7 +201,7 @@ export function ScanFlow({
     setQuad(
       isId
         ? defaultIdQuad(img.naturalWidth, img.naturalHeight)
-        : tightQuad(img.naturalWidth, img.naturalHeight),
+        : fullQuad(img.naturalWidth, img.naturalHeight),
     );
   };
 
@@ -212,6 +220,15 @@ export function ScanFlow({
     if (!rawImage || !quad) return;
     setBusy(true);
     try {
+      const img = await loadImage(rawImage);
+      // Full-page selection → keep original pixels (no warp/resize)
+      if (
+        !isId &&
+        quadCoversPage(quad, img.naturalWidth, img.naturalHeight, 0.97)
+      ) {
+        await goToEnhance(rawImage);
+        return;
+      }
       const warped = await warpPerspective(rawImage, quad);
       await goToEnhance(warped);
     } finally {
@@ -452,7 +469,7 @@ export function ScanFlow({
         <div className="step-panel">
           <p className="hint" style={{ textAlign: "center", marginBottom: "0.5rem" }}>
             {fromGallery
-              ? "Full document loaded. Crop edges, or import full size."
+              ? "Full A4 page kept as-is. Crop only if needed, or import full size."
               : "Drag corners to adjust. Pinch to zoom."}
           </p>
           <CropEditor imageSrc={rawImage} quad={quad} onChange={setQuad} />
