@@ -271,11 +271,11 @@ export function WatermarkSheet({
           <label
             className={`field watermark-field ${layout !== "full" ? "is-dimmed" : ""}`}
           >
-            <span>Space · {Math.round(spacing * 100)}%</span>
+            <span>Line space · {Math.round(spacing * 100)}%</span>
             <input
               type="range"
-              min={0.5}
-              max={2.5}
+              min={0.4}
+              max={2}
               step={0.05}
               value={spacing}
               disabled={busy || layout !== "full"}
