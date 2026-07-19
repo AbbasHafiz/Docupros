@@ -115,8 +115,8 @@ export function WatermarkSheet({ doc, open, onClose, onSave }: Props) {
         </div>
 
         <p className="hint share-hint">
-          Applied on PDF export, share, and CNIC print. Choose full-page tiling
-          or a single center mark, plus color and strength.
+          Shown on the page preview right away, and included in PDF export,
+          print, and share. Use Full page to tile across the whole page.
         </p>
 
         {error && <p className="share-error">{error}</p>}
@@ -183,8 +183,8 @@ export function WatermarkSheet({ doc, open, onClose, onSave }: Props) {
           <span>Opacity · {Math.round(opacity * 100)}%</span>
           <input
             type="range"
-            min={0.05}
-            max={0.45}
+            min={0.08}
+            max={0.55}
             step={0.01}
             value={opacity}
             disabled={busy}

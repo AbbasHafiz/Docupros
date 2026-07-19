@@ -105,7 +105,7 @@ export async function exportCnicSizedPdf(
     pdf.addImage(dataUrl, "JPEG", 0, 0, CNIC_WIDTH_MM, CNIC_HEIGHT_MM, undefined, "FAST");
     const wm = normalizeWatermark(options.watermark);
     if (wm) {
-      applyWatermarkToPdfPage(pdf, CNIC_WIDTH_MM, CNIC_HEIGHT_MM, wm, "mm");
+      await applyWatermarkToPdfPage(pdf, CNIC_WIDTH_MM, CNIC_HEIGHT_MM, wm, "mm");
     }
   }
 
