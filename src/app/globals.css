@@ -661,6 +661,32 @@ body.app-shell:has(.doc-view) {
   cursor: crosshair;
 }
 
+/* Site developer credit — sits above bottom nav */
+.site-credit {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(3.55rem + env(safe-area-inset-bottom));
+  z-index: 45;
+  margin: 0;
+  padding: 0.2rem 0.75rem;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, var(--muted) 88%, transparent);
+  pointer-events: none;
+}
+
+.developer-credit {
+  margin: 0.85rem 0 0;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--teal-deep);
+}
+
 /* Bottom nav + Tools hub */
 .bottom-nav {
   position: fixed;
@@ -691,7 +717,7 @@ body.app-shell:has(.doc-view) {
 }
 
 .app-shell {
-  padding-bottom: 4.5rem;
+  padding-bottom: 5.4rem;
 }
 
 .scan-flow,
