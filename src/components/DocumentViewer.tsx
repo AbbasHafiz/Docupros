@@ -21,7 +21,7 @@ import { CnicPrintSheet } from "./CnicPrintSheet";
 import { WatermarkSheet } from "./WatermarkSheet";
 import { WatermarkOverlay } from "./WatermarkOverlay";
 import type { WatermarkOptions } from "@/lib/types";
-import { resolveDocWatermark, watermarkLabel } from "@/lib/watermark";
+import { resolveDocWatermark, stampWatermarkOnImage, watermarkLabel } from "@/lib/watermark";
 
 type Props = { id: string };
 
@@ -50,6 +50,7 @@ export function DocumentViewer({ id }: Props) {
   const [watermarkOpen, setWatermarkOpen] = useState(false);
   const [renderStatus, setRenderStatus] = useState<string | null>(null);
   const [pageZoom, setPageZoom] = useState(1);
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const rerenderedRef = useRef<string | null>(null);
   const pageImageRef = useRef<HTMLImageElement | null>(null);
@@ -131,6 +132,50 @@ export function DocumentViewer({ id }: Props) {
   useEffect(() => {
     setPageZoom(1);
   }, [active, doc?.pages[active]?.id]);
+
+  // Bake watermark into the on-screen preview so look & feel matches export
+  useEffect(() => {
+    const src = doc?.pages[active]?.imageDataUrl;
+    if (!src || !doc) {
+      setPreviewSrc(src ?? null);
+      return;
+    }
+    const wm = resolveDocWatermark(doc);
+    if (!wm) {
+      setPreviewSrc(src);
+      return;
+    }
+
+    let cancelled = false;
+    setPreviewSrc(src);
+    setRenderStatus("Applying watermark preview…");
+    void stampWatermarkOnImage(src, wm)
+      .then((stamped) => {
+        if (cancelled) return;
+        setPreviewSrc(stamped);
+        setRenderStatus(null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPreviewSrc(src);
+        setRenderStatus(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    active,
+    doc,
+    doc?.watermark,
+    doc?.watermarkOptions?.text,
+    doc?.watermarkOptions?.color,
+    doc?.watermarkOptions?.opacity,
+    doc?.watermarkOptions?.layout,
+    doc?.watermarkOptions?.angle,
+    doc?.watermarkOptions?.size,
+    doc?.watermarkOptions?.spacing,
+  ]);
 
   if (doc === undefined) {
     return <div className="center-pad muted">Loading…</div>;
@@ -451,7 +496,7 @@ export function DocumentViewer({ id }: Props) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               ref={pageImageRef}
-              src={activePage?.imageDataUrl}
+              src={previewSrc ?? activePage?.imageDataUrl}
               alt={`Page ${active + 1}`}
               className="doc-page-image"
               style={
@@ -465,14 +510,11 @@ export function DocumentViewer({ id }: Props) {
                   : undefined
               }
             />
-            {pageWatermark && (
-              <WatermarkOverlay
-                key={`${activePage?.id ?? active}-${pageWatermark.text}-${pageWatermark.layout}-${Math.round(pageZoom * 100)}`}
-                options={pageWatermark}
-                imageRef={pageImageRef}
-                imageSrc={activePage?.imageDataUrl}
-              />
-            )}
+            {/* Instant CSS overlay while baked preview catches up */}
+            {pageWatermark &&
+              previewSrc === activePage?.imageDataUrl && (
+                <WatermarkOverlay options={pageWatermark} />
+              )}
           </div>
         </div>
 

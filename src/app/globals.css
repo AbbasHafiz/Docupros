@@ -1808,9 +1808,42 @@ body.app-shell:has(.doc-view) {
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: 3;
+  z-index: 5;
   display: block;
   border-radius: inherit;
+  overflow: hidden;
+}
+
+.page-watermark-overlay.is-css.is-full {
+  display: grid;
+  grid-template-columns: repeat(var(--wm-cols, 3), 1fr);
+  grid-template-rows: repeat(var(--wm-rows, 4), 1fr);
+  place-items: center;
+}
+
+.page-watermark-mark {
+  color: var(--wm-color, #0f766e);
+  opacity: var(--wm-opacity, 0.32);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: calc(0.7rem * var(--wm-size, 1));
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  transform: rotate(calc(-1 * var(--wm-angle, 35deg)));
+  white-space: nowrap;
+  max-width: 92%;
+  overflow: hidden;
+  text-align: center;
+  user-select: none;
+}
+
+.page-watermark-mark.is-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: calc(1.15rem * var(--wm-size, 1));
+  max-width: none;
 }
 
 .doc-page-image {
