@@ -1,19 +1,18 @@
-import { DocumentLibrary } from "@/components/DocumentLibrary";
 import Link from "next/link";
+import { AppHeader } from "@/components/AppHeader";
+import { DocumentLibrary } from "@/components/DocumentLibrary";
 
 export default function FilesPage() {
   return (
-    <main className="home files-page">
-      <section className="hero" style={{ paddingBottom: "1rem" }}>
-        <h1 className="hero-brand" style={{ fontSize: "2.2rem" }}>
-          Files
-        </h1>
-        <p className="hero-copy">Your scanned documents and forms.</p>
-      </section>
+    <main className="home files-page android-page">
+      <AppHeader title="Files" />
+      <p className="page-subhead">Documents saved on this device</p>
       <DocumentLibrary />
-      <Link href="/scan" className="fab">
-        <span aria-hidden>+</span>
-        New scan
+      <Link href="/scan" className="fab" aria-label="New scan">
+        <span className="fab-icon" aria-hidden>
+          +
+        </span>
+        <span className="fab-label">Scan</span>
       </Link>
     </main>
   );

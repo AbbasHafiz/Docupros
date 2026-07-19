@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { AppHeader } from "@/components/AppHeader";
 import { TOOL_SECTIONS } from "@/lib/toolsOps";
 
 export function ToolsHub() {
   return (
-    <main className="tools-page">
-      <header className="tools-head">
-        <h1>Tools</h1>
-        <p>Scan, import, convert, and edit — CamScanner-style toolkit.</p>
-      </header>
+    <main className="tools-page android-page">
+      <AppHeader title="Tools" />
+      <p className="page-subhead">
+        Scan, import, convert, and edit — CamScanner-style toolkit.
+      </p>
 
       {TOOL_SECTIONS.map((section) => (
         <section key={section.title} className="tools-section">
@@ -19,7 +20,7 @@ export function ToolsHub() {
               <Link
                 key={item.id}
                 href={item.href}
-                className={`tool-tile ${item.status === "soon" ? "is-soon" : ""}`}
+                className={`tool-tile pressable ${item.status === "soon" ? "is-soon" : ""}`}
               >
                 <span
                   className="tool-icon"
