@@ -1553,6 +1553,66 @@ body.app-shell:has(.doc-view) {
   font-size: 0.85rem;
 }
 
+.crop-zoom-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-bottom: 0.45rem;
+}
+
+.crop-viewport {
+  width: 100%;
+  max-height: min(48dvh, 520px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
+  border-radius: 14px;
+  background: #0b1c24;
+  display: flex;
+  justify-content: center;
+  -webkit-overflow-scrolling: touch;
+}
+
+.crop-viewport.is-zoomed {
+  /* Keep pan/scroll available after pinch-zoom */
+}
+
+.crop-zoom-inner {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.crop-canvas {
+  display: block;
+  max-width: none;
+  touch-action: none;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  cursor: crosshair;
+  background: #0b1c24;
+}
+
+.crop-hint {
+  text-align: center;
+  margin: 0.45rem 0 0;
+}
+
+.crop-continue {
+  margin-top: 0.25rem;
+}
+
+.filter-preview.is-zoomed {
+  overflow: auto;
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+.filter-preview.is-zoomed img {
+  max-height: none;
+}
+
 .step-actions.stacked {
   flex-direction: column;
   align-items: stretch;
@@ -1564,16 +1624,8 @@ body.app-shell:has(.doc-view) {
 .crop-wrap {
   display: grid;
   justify-items: center;
-  gap: 0.75rem;
-}
-
-.crop-canvas {
-  max-width: 100%;
-  border-radius: 14px;
-  touch-action: none;
-  box-shadow: var(--shadow);
-  cursor: crosshair;
-  background: #0b1c24;
+  gap: 0.45rem;
+  width: 100%;
 }
 
 .hint {
