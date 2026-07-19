@@ -49,9 +49,18 @@ export function DocumentViewer({ id }: Props) {
   const [cnicPrintOpen, setCnicPrintOpen] = useState(false);
   const [watermarkOpen, setWatermarkOpen] = useState(false);
   const [renderStatus, setRenderStatus] = useState<string | null>(null);
+  const [pageZoom, setPageZoom] = useState(1);
   const [, startTransition] = useTransition();
   const rerenderedRef = useRef<string | null>(null);
   const pageImageRef = useRef<HTMLImageElement | null>(null);
+  const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(
+    null,
+  );
+
+  const clampPageZoom = (z: number) => Math.min(4, Math.max(1, z));
+
+  const pinchDistance = (a: React.Touch, b: React.Touch) =>
+    Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +127,10 @@ export function DocumentViewer({ id }: Props) {
     return () => window.clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc?.id, doc?.sourcePdfBase64]);
+
+  useEffect(() => {
+    setPageZoom(1);
+  }, [active, doc?.pages[active]?.id]);
 
   if (doc === undefined) {
     return <div className="center-pad muted">Loading…</div>;
@@ -365,18 +378,96 @@ export function DocumentViewer({ id }: Props) {
       )}
 
       <div className="doc-scroll">
-        <div className="doc-stage">
-          <div className="doc-page-frame">
+        <div className="crop-zoom-bar doc-zoom-bar" role="toolbar" aria-label="Page zoom">
+          <button
+            type="button"
+            className="cs-zoom-btn"
+            disabled={pageZoom <= 1}
+            onClick={() => setPageZoom((z) => clampPageZoom(z - 0.25))}
+            aria-label="Zoom out"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            className="cs-zoom-pct"
+            onClick={() => setPageZoom(1)}
+            aria-label="Reset zoom"
+          >
+            {Math.round(pageZoom * 100)}%
+          </button>
+          <button
+            type="button"
+            className="cs-zoom-btn"
+            disabled={pageZoom >= 4}
+            onClick={() => setPageZoom((z) => clampPageZoom(z + 0.25))}
+            aria-label="Zoom in"
+          >
+            +
+          </button>
+          {pageZoom <= 1.05 && (
+            <span className="cs-zoom-hint">Pinch to check full page</span>
+          )}
+        </div>
+        <div
+          className={`doc-stage ${pageZoom > 1 ? "is-zoomed" : ""}`}
+          onTouchStart={(e) => {
+            if (e.touches.length === 2) {
+              pinchRef.current = {
+                startDist: pinchDistance(e.touches[0], e.touches[1]),
+                startZoom: pageZoom,
+              };
+            }
+          }}
+          onTouchMove={(e) => {
+            if (e.touches.length === 2 && pinchRef.current) {
+              e.preventDefault();
+              const dist = pinchDistance(e.touches[0], e.touches[1]);
+              const ratio = dist / Math.max(1, pinchRef.current.startDist);
+              setPageZoom(
+                clampPageZoom(pinchRef.current.startZoom * ratio),
+              );
+            }
+          }}
+          onTouchEnd={() => {
+            pinchRef.current = null;
+          }}
+          onTouchCancel={() => {
+            pinchRef.current = null;
+          }}
+        >
+          <div
+            className="doc-page-frame"
+            style={
+              pageZoom > 1
+                ? {
+                    width: `${Math.round(pageZoom * 100)}%`,
+                    maxWidth: "none",
+                    maxHeight: "none",
+                  }
+                : undefined
+            }
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               ref={pageImageRef}
               src={activePage?.imageDataUrl}
               alt={`Page ${active + 1}`}
               className="doc-page-image"
+              style={
+                pageZoom > 1
+                  ? {
+                      width: "100%",
+                      height: "auto",
+                      maxWidth: "none",
+                      maxHeight: "none",
+                    }
+                  : undefined
+              }
             />
             {pageWatermark && (
               <WatermarkOverlay
-                key={`${activePage?.id ?? active}-${pageWatermark.text}-${pageWatermark.layout}`}
+                key={`${activePage?.id ?? active}-${pageWatermark.text}-${pageWatermark.layout}-${Math.round(pageZoom * 100)}`}
                 options={pageWatermark}
                 imageRef={pageImageRef}
                 imageSrc={activePage?.imageDataUrl}

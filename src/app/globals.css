@@ -1760,6 +1760,31 @@ body.app-shell:has(.doc-view) {
   overflow: hidden;
 }
 
+.doc-zoom-bar {
+  flex-shrink: 0;
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+  background: transparent;
+  padding: 0.35rem 0.75rem 0;
+}
+
+.doc-stage.is-zoomed {
+  display: block;
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
+  max-height: min(70dvh, 100%);
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.doc-stage.is-zoomed .doc-page-frame {
+  display: block;
+  margin: 0 auto;
+}
+
 .doc-page-frame {
   position: relative;
   display: inline-block;
