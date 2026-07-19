@@ -1327,7 +1327,6 @@ body.app-shell:has(.doc-view) {
 .doc-thumb img,
 .page-thumb img,
 .filter-thumb img,
-.doc-page-image,
 .filter-preview img,
 .page-thumb-btn img {
   width: 100%;
@@ -1763,10 +1762,15 @@ body.app-shell:has(.doc-view) {
 
 .doc-page-frame {
   position: relative;
-  display: inline-flex;
+  display: inline-block;
+  width: fit-content;
   max-width: 100%;
   max-height: min(52dvh, 100%);
   line-height: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  background: transparent;
 }
 
 .doc-page-frame .doc-page-image {
@@ -1775,11 +1779,12 @@ body.app-shell:has(.doc-view) {
 
 .page-watermark-overlay {
   position: absolute;
-  inset: 0;
   pointer-events: none;
   overflow: hidden;
-  border-radius: 16px;
   z-index: 2;
+  border-radius: 0;
+  clip-path: inset(0);
+  contain: paint;
 }
 
 .page-watermark-overlay.is-full {
@@ -1794,13 +1799,21 @@ body.app-shell:has(.doc-view) {
   opacity: var(--wm-opacity, 0.28);
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: calc(clamp(0.85rem, 4.2vw, 1.55rem) * var(--wm-size, 1));
+  font-size: var(--wm-font, calc(clamp(0.85rem, 4.2vw, 1.55rem) * var(--wm-size, 1)));
   letter-spacing: 0.04em;
   text-transform: uppercase;
   transform: rotate(calc(-1 * var(--wm-angle, 35deg)));
   white-space: nowrap;
   user-select: none;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
+  max-width: 96%;
+  overflow: hidden;
+  text-overflow: clip;
+  text-align: center;
+}
+
+.page-watermark-mark.is-tiled {
+  justify-self: center;
+  align-self: center;
 }
 
 .page-watermark-mark.is-center {
@@ -1808,18 +1821,20 @@ body.app-shell:has(.doc-view) {
   inset: 0;
   display: grid;
   place-items: center;
-  font-size: calc(clamp(1.1rem, 6vw, 2.1rem) * var(--wm-size, 1));
+  font-size: var(--wm-font, calc(clamp(1.1rem, 6vw, 2.1rem) * var(--wm-size, 1)));
+  max-width: none;
 }
 
 .doc-page-image {
+  display: block;
   width: auto;
   height: auto;
   max-width: 100%;
   max-height: min(52dvh, 100%);
   object-fit: contain;
-  border-radius: 16px;
-  background: #0b1c24;
-  box-shadow: var(--shadow);
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
 }
 
 .doc-toolbar {
