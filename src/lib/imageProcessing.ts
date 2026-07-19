@@ -230,30 +230,65 @@ export async function applyFilter(
   return canvas.toDataURL("image/jpeg", 0.92);
 }
 
-/** Edge-aware document bounds using luminance + simple gradient. */
-export async function detectDocumentQuad(imageSrc: string): Promise<Quad> {
+export type LiveDetectResult = {
+  /** 0–1 how confident the detector is that a document/object is framed */
+  confidence: number;
+  found: boolean;
+  quad: Quad;
+};
+
+/** Tight full-frame quad — used when a gallery photo is already edge-to-edge. */
+export function tightQuad(width: number, height: number): Quad {
+  const inset = Math.max(1, Math.round(Math.min(width, height) * 0.004));
+  return {
+    tl: { x: inset, y: inset },
+    tr: { x: width - inset, y: inset },
+    br: { x: width - inset, y: height - inset },
+    bl: { x: inset, y: height - inset },
+  };
+}
+
+export type DetectDetailed = LiveDetectResult & {
+  width: number;
+  height: number;
+};
+
+/**
+ * Higher-res still-image edge detect (gallery / upload / auto-crop).
+ * Returns confidence so callers can auto-apply the warp.
+ */
+export async function detectDocumentQuadDetailed(
+  imageSrc: string,
+  maxSide = 720,
+): Promise<DetectDetailed> {
   const img = await loadImage(imageSrc);
   const w = img.naturalWidth;
   const h = img.naturalHeight;
   const canvas = document.createElement("canvas");
-  const maxSide = 400;
   const scale = Math.min(1, maxSide / Math.max(w, h));
   canvas.width = Math.max(1, Math.round(w * scale));
   canvas.height = Math.max(1, Math.round(h * scale));
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  if (!ctx) return defaultQuad(w, h);
+  if (!ctx) {
+    return {
+      quad: defaultQuad(w, h),
+      confidence: 0,
+      found: false,
+      width: w,
+      height: h,
+    };
+  }
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const result = detectDocumentQuadFromImageData(imageData, 1 / scale);
-  return result.found ? result.quad : defaultQuad(w, h);
+  return { ...result, width: w, height: h };
 }
 
-export type LiveDetectResult = {
-  quad: Quad;
-  /** 0–1 how confident the detector is that a document/object is framed */
-  confidence: number;
-  found: boolean;
-};
+/** Edge-aware document bounds using luminance + simple gradient. */
+export async function detectDocumentQuad(imageSrc: string): Promise<Quad> {
+  const result = await detectDocumentQuadDetailed(imageSrc);
+  return result.found ? result.quad : defaultQuad(result.width, result.height);
+}
 
 /**
  * Fast document/object edge detection for a downscaled frame.
@@ -308,11 +343,11 @@ export function detectDocumentQuadFromImageData(
   const edgeThresh = Math.max(28, edgeMean * 2.2);
 
   // Sample columns/rows in the central band and walk inward for first strong edge
-  const samples = 28;
-  const x0 = Math.floor(cw * 0.12);
-  const x1 = Math.floor(cw * 0.88);
-  const y0 = Math.floor(ch * 0.12);
-  const y1 = Math.floor(ch * 0.88);
+  const samples = 40;
+  const x0 = Math.floor(cw * 0.08);
+  const x1 = Math.floor(cw * 0.92);
+  const y0 = Math.floor(ch * 0.08);
+  const y1 = Math.floor(ch * 0.92);
 
   const tops: number[] = [];
   const bottoms: number[] = [];
@@ -335,7 +370,7 @@ export function detectDocumentQuadFromImageData(
         break;
       }
     }
-    if (topHit >= 0 && bottomHit > topHit + ch * 0.12) {
+    if (topHit >= 0 && bottomHit > topHit + ch * 0.1) {
       tops.push(topHit);
       bottoms.push(bottomHit);
     }
@@ -355,16 +390,17 @@ export function detectDocumentQuadFromImageData(
         break;
       }
     }
-    if (leftHit >= 0 && rightHit > leftHit + cw * 0.12) {
+    if (leftHit >= 0 && rightHit > leftHit + cw * 0.1) {
       lefts.push(leftHit);
       rights.push(rightHit);
     }
   }
 
-  const median = (arr: number[]) => {
+  const percentile = (arr: number[], p: number) => {
     if (!arr.length) return NaN;
     const s = [...arr].sort((a, b) => a - b);
-    return s[Math.floor(s.length / 2)];
+    const idx = Math.min(s.length - 1, Math.max(0, Math.floor((s.length - 1) * p)));
+    return s[idx];
   };
 
   const mad = (arr: number[], med: number) => {
@@ -373,19 +409,24 @@ export function detectDocumentQuadFromImageData(
     return diffs[Math.floor(diffs.length / 2)] || 0;
   };
 
-  let minX = median(lefts);
-  let maxX = median(rights);
-  let minY = median(tops);
-  let maxY = median(bottoms);
+  // Bias toward outer edges for a tighter crop-to-border result
+  let minX = percentile(lefts, 0.18);
+  let maxX = percentile(rights, 0.82);
+  let minY = percentile(tops, 0.18);
+  let maxY = percentile(bottoms, 0.82);
+  const medLeft = percentile(lefts, 0.5);
+  const medRight = percentile(rights, 0.5);
+  const medTop = percentile(tops, 0.5);
+  const medBottom = percentile(bottoms, 0.5);
 
   const hitScore =
     (tops.length + bottoms.length + lefts.length + rights.length) /
     (samples * 4);
   const stable =
-    mad(lefts, minX) < cw * 0.08 &&
-    mad(rights, maxX) < cw * 0.08 &&
-    mad(tops, minY) < ch * 0.08 &&
-    mad(bottoms, maxY) < ch * 0.08;
+    mad(lefts, medLeft) < cw * 0.08 &&
+    mad(rights, medRight) < cw * 0.08 &&
+    mad(tops, medTop) < ch * 0.08 &&
+    mad(bottoms, medBottom) < ch * 0.08;
 
   // Fallback: bright paper AABB if edge walk is weak
   if (
@@ -449,14 +490,14 @@ export function detectDocumentQuadFromImageData(
     maxY = bMaxY;
   }
 
-  const pad = 2;
+  const pad = 1;
   minX = Math.max(0, minX - pad);
   minY = Math.max(0, minY - pad);
   maxX = Math.min(cw - 1, maxX + pad);
   maxY = Math.min(ch - 1, maxY + pad);
 
   const areaRatio = ((maxX - minX) * (maxY - minY)) / (cw * ch);
-  const sizeOk = areaRatio > 0.08 && areaRatio < 0.92;
+  const sizeOk = areaRatio > 0.06 && areaRatio < 0.98;
   const confidence = Math.max(
     0,
     Math.min(
@@ -465,7 +506,8 @@ export function detectDocumentQuadFromImageData(
         (sizeOk ? 1 : 0.4),
     ),
   );
-  const found = confidence >= 0.35 && maxX - minX > cw * 0.2 && maxY - minY > ch * 0.15;
+  const found =
+    confidence >= 0.3 && maxX - minX > cw * 0.18 && maxY - minY > ch * 0.12;
 
   const s = outScale;
   return {
