@@ -235,8 +235,25 @@ export function DocumentViewer({ id }: Props) {
   };
 
   const runOcr = async () => {
+    // Already extracted — just show it again (don't re-run until asked)
+    if (doc.ocrText?.trim() && !showOcr) {
+      setOcrDraft(doc.ocrText);
+      setShowOcr(true);
+      setRenderStatus("Showing extracted text");
+      window.setTimeout(() => setRenderStatus(null), 1600);
+      return;
+    }
+
+    // Panel open with existing text — confirm before replacing
+    if (doc.ocrText?.trim() && showOcr) {
+      if (!confirm("Extract text again? This replaces the current text.")) {
+        return;
+      }
+    }
+
     setOcrRunning(true);
     setOcrProgress(0);
+    setRenderStatus("Extracting text…");
     try {
       const text = await extractTextFromImages(
         doc.pages.map((p) => p.imageDataUrl),
@@ -246,6 +263,10 @@ export function DocumentViewer({ id }: Props) {
       await persist(updated);
       setOcrDraft(text);
       setShowOcr(true);
+      setRenderStatus(
+        text.trim() ? "Text extracted" : "No text found on these pages",
+      );
+      window.setTimeout(() => setRenderStatus(null), 2000);
     } finally {
       setOcrRunning(false);
     }
@@ -418,7 +439,7 @@ export function DocumentViewer({ id }: Props) {
           </section>
         )}
 
-        {(showOcr || doc.ocrText) && (
+        {showOcr && (
           <section className="ocr-panel">
             <div className="ocr-head">
               <h2>Document text</h2>
@@ -427,44 +448,44 @@ export function DocumentViewer({ id }: Props) {
                   type="button"
                   className="text-btn"
                   onClick={() => void copyText()}
+                  disabled={!ocrDraft.trim()}
                 >
                   Copy
                 </button>
                 <button
                   type="button"
                   className="text-btn"
-                  onClick={() => setShowOcr((v) => !v)}
+                  onClick={() => setShowOcr(false)}
                 >
-                  {showOcr ? "Hide" : "Show"}
+                  Done
                 </button>
               </div>
             </div>
-            {showOcr && (
-              <>
-                <textarea
-                  className="ocr-text"
-                  value={ocrDraft}
-                  onChange={(e) => setOcrDraft(e.target.value)}
-                  rows={10}
-                  placeholder="Extracted text appears here — edit freely, then save."
-                />
-                <div className="row-actions" style={{ marginTop: "0.65rem" }}>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => void saveOcrText()}
-                  >
-                    Save text changes
-                  </button>
-                  <Link
-                    href={documentHref(doc.id, "edit", activePage?.id ?? "")}
-                    className="btn-secondary"
-                  >
-                    Change text on image
-                  </Link>
-                </div>
-              </>
-            )}
+            <textarea
+              className="ocr-text"
+              value={ocrDraft}
+              onChange={(e) => setOcrDraft(e.target.value)}
+              rows={10}
+              placeholder="Extracted text appears here."
+            />
+            <div className="row-actions" style={{ marginTop: "0.65rem" }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => void saveOcrText()}
+                disabled={!ocrDraft.trim()}
+              >
+                Save edits
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => void runOcr()}
+                disabled={ocrRunning}
+              >
+                {ocrRunning ? `OCR ${ocrProgress}%` : "Extract again"}
+              </button>
+            </div>
           </section>
         )}
       </div>
@@ -556,7 +577,13 @@ export function DocumentViewer({ id }: Props) {
           onClick={() => void runOcr()}
           disabled={ocrRunning}
         >
-          {ocrRunning ? `OCR ${ocrProgress}%` : "Extract text"}
+          {ocrRunning
+            ? `OCR ${ocrProgress}%`
+            : doc.ocrText?.trim()
+              ? showOcr
+                ? "Extract again"
+                : "View text"
+              : "Extract text"}
         </button>
         <button type="button" className="btn-danger" onClick={() => void remove()}>
           Delete
