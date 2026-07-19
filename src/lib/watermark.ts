@@ -45,7 +45,7 @@ export function normalizeWatermark(
       : DEFAULT_WATERMARK_STYLE.angle,
     size: clamp(
       Number.isFinite(input.size) ? Number(input.size) : DEFAULT_WATERMARK_STYLE.size,
-      0.4,
+      0.15,
       2.5,
     ),
     spacing: clamp(
