@@ -170,104 +170,130 @@ export function ScanFlow({
     }
   };
 
-  const addCurrentPage = useCallback(async () => {
-    if (!cropped) return;
+  const buildEnhancedPage = useCallback(async (): Promise<ScanPage | null> => {
+    if (!cropped) return null;
+    let finalImage = await applyFilter(cropped, filter);
+    if (mode === "timestamp") {
+      finalImage = await stampTimestamp(finalImage);
+    }
+    return {
+      id: retakePageId ?? createId(),
+      imageDataUrl: finalImage,
+      originalDataUrl: cropped,
+      filter,
+      createdAt: Date.now(),
+      side: isId ? idSide : undefined,
+    };
+  }, [cropped, filter, idSide, isId, mode, retakePageId]);
+
+  const mergePageInto = useCallback(
+    (prev: ScanPage[], page: ScanPage): ScanPage[] => {
+      if (retakePageId) {
+        const mapped = prev.map((p) =>
+          p.id === retakePageId
+            ? { ...page, side: p.side ?? page.side }
+            : p,
+        );
+        if (!prev.some((p) => p.id === retakePageId)) {
+          return [...prev, page];
+        }
+        return mapped;
+      }
+      if (!isId) return [...prev, page];
+      const withoutSide = prev.filter((p) => p.side !== idSide);
+      return [...withoutSide, page];
+    },
+    [idSide, isId, retakePageId],
+  );
+
+  const resetCaptureState = () => {
+    setRawImage(null);
+    setQuad(null);
+    setCropped(null);
+    setPreviews({});
+  };
+
+  const savePagesAndReturn = async (nextPages: ScanPage[]) => {
+    if (nextPages.length === 0) return;
+    if (appendToId && !appendReady) return;
+    const now = Date.now();
+    const kind = isId || existing?.kind === "id_card" ? "id_card" : "document";
+    if (existing || appendToId) {
+      const base = existing;
+      if (!base) {
+        alert("Still loading document. Try again.");
+        return;
+      }
+      const updated: DocumentRecord = {
+        ...base,
+        kind,
+        pages: nextPages,
+        updatedAt: now,
+        thumbnail: nextPages[0]?.imageDataUrl,
+      };
+      await saveDocument(updated);
+      startTransition(() => router.push(documentHref(base.id)));
+    } else {
+      const id = createId();
+      const doc: DocumentRecord = {
+        id,
+        title: isId
+          ? `CNIC ${new Date(now).toLocaleString()}`
+          : `Scan ${new Date(now).toLocaleString()}`,
+        pages: nextPages,
+        kind,
+        createdAt: now,
+        updatedAt: now,
+        thumbnail: nextPages[0]?.imageDataUrl,
+      };
+      await saveDocument(doc);
+      startTransition(() => router.push(documentHref(id)));
+    }
+  };
+
+  /** Keep scanning — add this page and open the camera again. */
+  const nextScan = async () => {
     setBusy(true);
     try {
-      let finalImage = await applyFilter(cropped, filter);
-      if (mode === "timestamp") {
-        finalImage = await stampTimestamp(finalImage);
-      }
-      const page: ScanPage = {
-        id: retakePageId ?? createId(),
-        imageDataUrl: finalImage,
-        originalDataUrl: cropped,
-        filter,
-        createdAt: Date.now(),
-        side: isId ? idSide : undefined,
-      };
-
-      setPages((prev) => {
-        if (retakePageId) {
-          const mapped = prev.map((p) =>
-            p.id === retakePageId
-              ? { ...page, side: p.side ?? page.side }
-              : p,
-          );
-          // If retake id wasn't found (race), append instead of wiping
-          if (!prev.some((p) => p.id === retakePageId)) {
-            return [...prev, page];
-          }
-          return mapped;
-        }
-        if (!isId) return [...prev, page];
-        const withoutSide = prev.filter((p) => p.side !== idSide);
-        return [...withoutSide, page];
-      });
-
-      setRawImage(null);
-      setQuad(null);
-      setCropped(null);
-      setPreviews({});
-
+      const page = await buildEnhancedPage();
+      if (!page) return;
+      setPages((prev) => mergePageInto(prev, page));
+      resetCaptureState();
       if (retakePageId) {
         setStep("review");
         return;
       }
-
-      if (isId) {
-        if (idSide === "front") {
-          setIdSide("back");
-          setStep("capture");
-        } else {
-          setStep("review");
-        }
-      } else {
-        setStep("review");
+      if (isId && idSide === "front") {
+        setIdSide("back");
       }
+      setStep("capture");
     } finally {
       setBusy(false);
     }
-  }, [cropped, filter, idSide, isId, mode, retakePageId]);
+  };
+
+  /** Add this page, save the document, and return to the library/viewer. */
+  const saveAndReturn = async () => {
+    setBusy(true);
+    try {
+      const page = await buildEnhancedPage();
+      if (!page) return;
+      const nextPages = mergePageInto(pages, page);
+      setPages(nextPages);
+      resetCaptureState();
+      await savePagesAndReturn(nextPages);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Save failed — storage may be full");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const saveAll = async () => {
     if (pages.length === 0) return;
-    if (appendToId && !appendReady) return;
     setBusy(true);
     try {
-      const now = Date.now();
-      const kind = isId || existing?.kind === "id_card" ? "id_card" : "document";
-      if (existing || appendToId) {
-        const base = existing;
-        if (!base) {
-          alert("Still loading document. Try again.");
-          return;
-        }
-        const updated: DocumentRecord = {
-          ...base,
-          kind,
-          pages,
-          updatedAt: now,
-          thumbnail: pages[0]?.imageDataUrl,
-        };
-        await saveDocument(updated);
-        startTransition(() => router.push(documentHref(base.id)));
-      } else {
-        const id = createId();
-        const doc: DocumentRecord = {
-          id,
-          title: isId
-            ? `CNIC ${new Date(now).toLocaleString()}`
-            : `Scan ${new Date(now).toLocaleString()}`,
-          pages,
-          kind,
-          createdAt: now,
-          updatedAt: now,
-          thumbnail: pages[0]?.imageDataUrl,
-        };
-        await saveDocument(doc);
-        startTransition(() => router.push(documentHref(id)));
-      }
+      await savePagesAndReturn(pages);
     } catch (e) {
       alert(e instanceof Error ? e.message : "Save failed — storage may be full");
     } finally {
@@ -431,20 +457,26 @@ export function ScanFlow({
             previews={previews}
             onChange={setFilter}
           />
-          <div className="step-actions">
+          <div className="step-actions stacked">
             <button
               type="button"
               className="btn-primary"
-              onClick={() => void addCurrentPage()}
+              onClick={() => void nextScan()}
               disabled={busy}
             >
-              {isId
-                ? idSide === "front"
-                  ? "Save front → scan back"
-                  : "Save CNIC back"
+              {isId && idSide === "front" && !retakePageId
+                ? "Next scan (back)"
                 : retakePageId
-                  ? "Replace page"
-                  : "Add page"}
+                  ? "Replace & continue"
+                  : "Next scan"}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => void saveAndReturn()}
+              disabled={busy}
+            >
+              Save & return
             </button>
           </div>
         </div>
