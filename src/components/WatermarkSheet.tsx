@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { DocumentRecord, WatermarkLayout, WatermarkOptions } from "@/lib/types";
 import {
   DEFAULT_WATERMARK_STYLE,
+  DEFAULT_WATERMARK_TEXT,
   normalizeWatermark,
   resolveDocWatermark,
   watermarkTileGrid,
@@ -23,11 +24,21 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onSave: (options: WatermarkOptions | null) => Promise<void> | void;
+  /** Live draft for on-page look-and-feel while the sheet is open. */
+  onDraftChange?: (options: WatermarkOptions | null) => void;
 };
 
-export function WatermarkSheet({ doc, open, onClose, onSave }: Props) {
+export function WatermarkSheet({
+  doc,
+  open,
+  onClose,
+  onSave,
+  onDraftChange,
+}: Props) {
   const existing = useMemo(() => resolveDocWatermark(doc), [doc]);
-  const [text, setText] = useState(existing?.text ?? "");
+  const [text, setText] = useState(
+    existing?.text ?? DEFAULT_WATERMARK_TEXT,
+  );
   const [color, setColor] = useState(
     existing?.color ?? DEFAULT_WATERMARK_STYLE.color,
   );
@@ -35,7 +46,7 @@ export function WatermarkSheet({ doc, open, onClose, onSave }: Props) {
     existing?.opacity ?? DEFAULT_WATERMARK_STYLE.opacity,
   );
   const [layout, setLayout] = useState<WatermarkLayout>(
-    existing?.layout ?? "center",
+    existing?.layout ?? "full",
   );
   const [angle, setAngle] = useState(
     existing?.angle ?? DEFAULT_WATERMARK_STYLE.angle,
@@ -50,27 +61,39 @@ export function WatermarkSheet({ doc, open, onClose, onSave }: Props) {
   useEffect(() => {
     if (!open) return;
     const wm = resolveDocWatermark(doc);
-    setText(wm?.text ?? "");
+    setText(wm?.text ?? DEFAULT_WATERMARK_TEXT);
     setColor(wm?.color ?? DEFAULT_WATERMARK_STYLE.color);
     setOpacity(wm?.opacity ?? DEFAULT_WATERMARK_STYLE.opacity);
-    setLayout(wm?.layout ?? "center");
+    setLayout(wm?.layout ?? "full");
     setAngle(wm?.angle ?? DEFAULT_WATERMARK_STYLE.angle);
     setSize(wm?.size ?? DEFAULT_WATERMARK_STYLE.size);
     setSpacing(wm?.spacing ?? DEFAULT_WATERMARK_STYLE.spacing);
     setError(null);
   }, [open, doc]);
 
-  if (!open) return null;
+  const preview = useMemo(
+    () =>
+      normalizeWatermark({
+        text: text.trim() || DEFAULT_WATERMARK_TEXT,
+        color,
+        opacity,
+        layout,
+        angle,
+        size,
+        spacing,
+      }),
+    [text, color, opacity, layout, angle, size, spacing],
+  );
 
-  const preview = normalizeWatermark({
-    text: text.trim() || "WATERMARK",
-    color,
-    opacity,
-    layout,
-    angle,
-    size,
-    spacing,
-  });
+  useEffect(() => {
+    if (!open) {
+      onDraftChange?.(null);
+      return;
+    }
+    onDraftChange?.(preview);
+  }, [open, preview, onDraftChange]);
+
+  if (!open) return null;
 
   const previewGrid =
     preview?.layout === "full"
@@ -85,11 +108,12 @@ export function WatermarkSheet({ doc, open, onClose, onSave }: Props) {
     setBusy(true);
     setError(null);
     try {
-      if (clear || !text.trim()) {
+      if (clear) {
         await onSave(null);
       } else {
+        // Empty text still applies the default shown in the preview
         const options = normalizeWatermark({
-          text,
+          text: text.trim() || DEFAULT_WATERMARK_TEXT,
           color,
           opacity,
           layout,
@@ -110,7 +134,7 @@ export function WatermarkSheet({ doc, open, onClose, onSave }: Props) {
 
   return (
     <div
-      className="modal-backdrop share-backdrop"
+      className="modal-backdrop share-backdrop watermark-sheet-backdrop"
       role="presentation"
       onClick={(e) => {
         if (e.target === e.currentTarget && !busy) onClose();
@@ -171,11 +195,15 @@ export function WatermarkSheet({ doc, open, onClose, onSave }: Props) {
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="e.g. CONFIDENTIAL"
+            placeholder={DEFAULT_WATERMARK_TEXT}
             maxLength={80}
             disabled={busy}
           />
         </label>
+        <p className="hint watermark-save-hint">
+          Save applies the watermark on the page so you can check look and feel.
+          Clear removes it.
+        </p>
 
         <div className="watermark-compact-row">
           <div className="cnic-option-group watermark-group">

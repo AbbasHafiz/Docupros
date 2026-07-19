@@ -2,6 +2,8 @@ import type { jsPDF } from "jspdf";
 import { loadImage } from "./imageProcessing";
 import type { DocumentRecord, WatermarkLayout, WatermarkOptions } from "./types";
 
+export const DEFAULT_WATERMARK_TEXT = "WATERMARK";
+
 export const DEFAULT_WATERMARK_STYLE: Omit<WatermarkOptions, "text"> = {
   color: "#0f766e",
   opacity: 0.32,
