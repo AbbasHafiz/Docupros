@@ -1,86 +1,43 @@
 "use client";
 
-import { useLayoutEffect, useRef, type RefObject } from "react";
 import type { WatermarkOptions } from "@/lib/types";
-import { applyWatermarkToCanvas } from "@/lib/watermark";
+import { watermarkTileGrid } from "@/lib/watermark";
 
 type Props = {
   options: WatermarkOptions;
-  /** Page image — overlay matches its displayed box. */
-  imageRef: RefObject<HTMLImageElement | null>;
-  /** Remeasure when page src changes. */
-  imageSrc?: string;
 };
 
 /**
- * Canvas watermark over the page — same drawing as PDF export,
- * clipped to the page frame so it always shows in-app.
+ * Always-visible CSS watermark covering the page frame (inset: 0).
+ * Used as an instant preview; baked image preview is preferred when ready.
  */
-export function WatermarkOverlay({ options, imageRef, imageSrc }: Props) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useLayoutEffect(() => {
-    const img = imageRef.current;
-    const canvas = canvasRef.current;
-    if (!img || !canvas) return;
-
-    let cancelled = false;
-
-    const paint = () => {
-      if (cancelled) return;
-      const w = img.clientWidth;
-      const h = img.clientHeight;
-      if (w < 2 || h < 2) return;
-
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
-      canvas.width = Math.max(1, Math.round(w * dpr));
-      canvas.height = Math.max(1, Math.round(h * dpr));
-      canvas.style.width = `${w}px`;
-      canvas.style.height = `${h}px`;
-
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, w, h);
-      applyWatermarkToCanvas(ctx, w, h, options);
-    };
-
-    paint();
-    // Retry after layout / decode (data-URLs can report 0×0 for a frame)
-    const raf = window.requestAnimationFrame(paint);
-    const t1 = window.setTimeout(paint, 50);
-    const t2 = window.setTimeout(paint, 200);
-
-    const ro = new ResizeObserver(paint);
-    ro.observe(img);
-    if (img.parentElement) ro.observe(img.parentElement);
-    img.addEventListener("load", paint);
-
-    return () => {
-      cancelled = true;
-      window.cancelAnimationFrame(raf);
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-      ro.disconnect();
-      img.removeEventListener("load", paint);
-    };
-  }, [
-    imageRef,
-    imageSrc,
-    options.text,
-    options.color,
-    options.opacity,
-    options.layout,
-    options.angle,
-    options.size,
-    options.spacing,
-  ]);
+export function WatermarkOverlay({ options }: Props) {
+  const tiled = options.layout === "full";
+  const grid = tiled ? watermarkTileGrid(options.spacing) : { cols: 1, rows: 1 };
+  const count = tiled ? grid.cols * grid.rows : 1;
+  const sizeScale = options.size || 1;
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="page-watermark-overlay"
+    <div
+      className={`page-watermark-overlay is-css ${tiled ? "is-full" : "is-center"}`}
       aria-hidden
-    />
+      style={{
+        ["--wm-color" as string]: options.color,
+        ["--wm-opacity" as string]: String(Math.max(0.2, options.opacity)),
+        ["--wm-angle" as string]: `${options.angle}deg`,
+        ["--wm-size" as string]: String(sizeScale),
+        ["--wm-cols" as string]: String(grid.cols),
+        ["--wm-rows" as string]: String(grid.rows),
+      }}
+    >
+      {Array.from({ length: count }, (_, i) => (
+        <span
+          key={i}
+          className={`page-watermark-mark ${tiled ? "is-tiled" : "is-center"}`}
+        >
+          {options.text}
+        </span>
+      ))}
+    </div>
   );
 }
