@@ -43,6 +43,11 @@ import {
   type HandwritingMode,
 } from "@/lib/editOperations";
 import { documentHref } from "@/lib/routes";
+import {
+  BG_FILL_PRESETS,
+  removeBackground,
+  type BgQuality,
+} from "@/lib/removeBackground";
 import { ShareSheet } from "./ShareSheet";
 
 type Props = {
@@ -74,6 +79,7 @@ const IMAGE_TOOLS: { id: ImageTool; label: string; icon: string }[] = [
   { id: "editText", label: "Edit Text", icon: "T" },
   { id: "smartErase", label: "Smart Erase", icon: "⌫" },
   { id: "removeHandwriting", label: "Handwriting", icon: "✍" },
+  { id: "removeBackground", label: "No BG", icon: "✂" },
   { id: "retake", label: "Retake", icon: "↻" },
   { id: "sign", label: "Sign", icon: "✎" },
   { id: "addText", label: "Add Text", icon: "A" },
@@ -92,6 +98,9 @@ export function PageEditor({ documentId, pageId }: Props) {
   const [brushSize, setBrushSize] = useState(32);
   const [hwMode, setHwMode] = useState<HandwritingMode>("both");
   const [hwStrength, setHwStrength] = useState(55);
+  const [rmbgQuality, setRmbgQuality] = useState<BgQuality>("balanced");
+  const [rmbgFillId, setRmbgFillId] = useState("white");
+  const [rmbgCustomColor, setRmbgCustomColor] = useState("#ffffff");
   const [drawing, setDrawing] = useState(false);
   const [adjust, setAdjust] = useState<EnhanceAdjustments>({
     brightness: 0,
@@ -1381,6 +1390,103 @@ export function PageEditor({ documentId, pageId }: Props) {
               onChange={(e) => setBrushSize(Number(e.target.value))}
             />
           </label>
+        </div>
+      )}
+
+      {!cropRaw && imageTool === "removeBackground" && (
+        <div className="cs-sheet">
+          <p className="panel-title">Remove Background</p>
+          <p className="hint">
+            AI cutout on this page. First run downloads the model; Transparent
+            keeps alpha (PNG), solid fills export cleanly to PDF.
+          </p>
+          <div className="row-actions">
+            {(
+              [
+                ["fast", "Fast"],
+                ["balanced", "Balanced"],
+                ["best", "Best"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={`mini-chip ${rmbgQuality === id ? "is-active" : ""}`}
+                onClick={() => setRmbgQuality(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="row-actions rmbg-fill-row">
+            {BG_FILL_PRESETS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className={`mini-chip ${rmbgFillId === p.id ? "is-active" : ""}`}
+                onClick={() => setRmbgFillId(p.id)}
+              >
+                {p.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              className={`mini-chip ${rmbgFillId === "custom" ? "is-active" : ""}`}
+              onClick={() => setRmbgFillId("custom")}
+            >
+              Custom
+            </button>
+            {rmbgFillId === "custom" && (
+              <label className="rmbg-color-pick" title="Custom background">
+                <input
+                  type="color"
+                  value={rmbgCustomColor}
+                  onChange={(e) => setRmbgCustomColor(e.target.value)}
+                />
+              </label>
+            )}
+          </div>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={busy}
+            onClick={() =>
+              void (async () => {
+                if (!page) return;
+                setBusy(true);
+                setStatus("Removing background…");
+                try {
+                  const fill =
+                    rmbgFillId === "custom"
+                      ? ({ kind: "solid" as const, color: rmbgCustomColor })
+                      : (BG_FILL_PRESETS.find((p) => p.id === rmbgFillId)
+                          ?.fill ?? { kind: "transparent" as const });
+                  const next = await removeBackground(
+                    page.originalDataUrl ?? page.imageDataUrl,
+                    {
+                      quality: rmbgQuality,
+                      fill,
+                      onProgress: (label, ratio) => {
+                        setStatus(`${label} · ${Math.round(ratio * 100)}%`);
+                      },
+                    },
+                  );
+                  await persistPage(next);
+                  setStatus("Background removed");
+                } catch (e) {
+                  setStatus(
+                    e instanceof Error
+                      ? e.message
+                      : "Background removal failed",
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              })()
+            }
+          >
+            {busy ? "Working…" : "Remove background"}
+          </button>
         </div>
       )}
 
