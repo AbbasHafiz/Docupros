@@ -795,7 +795,9 @@ body.app-shell:has(.doc-view) {
 
 .watermark-preview-page.is-full {
   grid-template-columns: repeat(var(--wm-cols, 3), 1fr);
-  grid-template-rows: repeat(var(--wm-rows, 4), 1fr);
+  grid-template-rows: repeat(var(--wm-rows, 20), 1fr);
+  row-gap: 0;
+  column-gap: 0;
 }
 
 .watermark-preview-mark {
@@ -1839,8 +1841,16 @@ body.app-shell:has(.doc-view) {
 .page-watermark-overlay.is-css.is-full {
   display: grid;
   grid-template-columns: repeat(var(--wm-cols, 3), 1fr);
-  grid-template-rows: repeat(var(--wm-rows, 4), 1fr);
+  grid-template-rows: repeat(var(--wm-rows, 20), 1fr);
   place-items: center;
+  row-gap: 0;
+  column-gap: 0;
+}
+
+.page-watermark-overlay.is-css.is-full .page-watermark-mark {
+  font-size: calc(0.72rem * var(--wm-size, 1));
+  max-width: 98%;
+  line-height: 1.05;
 }
 
 .page-watermark-mark {

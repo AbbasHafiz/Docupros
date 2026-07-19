@@ -116,8 +116,9 @@ export async function exportFillablePdf(
         Math.min(preferred, (width * 0.6) / Math.max(1, wm.text.length * 0.55)),
       );
       const textW = Math.max(1, wm.text.length * size * 0.55);
-      const stepX = Math.max(textW * 1.2, width / 3.2) * (wm.spacing || 1);
-      const stepY = Math.max(size * 3.4, height / 5.5) * (wm.spacing || 1);
+      const stepX =
+        Math.max(textW * 1.12, textW + size * 0.35) * (wm.spacing || 1);
+      const stepY = Math.max(size * 1.28, size + 2) * (wm.spacing || 1);
       const draw = (x: number, y: number) => {
         p.drawText(wm.text, {
           x: Math.max(8, Math.min(width - 8, x)),
@@ -130,7 +131,8 @@ export async function exportFillablePdf(
         });
       };
       if (wm.layout === "full") {
-        for (let y = stepY * 0.5; y < height; y += stepY) {
+        const startY = Math.max(size * 0.7, stepY * 0.45);
+        for (let y = startY; y < height - size * 0.2; y += stepY) {
           for (let x = stepX * 0.5; x < width; x += stepX) {
             draw(x, y);
           }

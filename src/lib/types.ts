@@ -67,7 +67,7 @@ export type WatermarkOptions = {
   angle: number;
   /** Font scale 0.4–2.5 (1 = default). */
   size: number;
-  /** Tile spacing scale 0.5–2.5 for full-page (1 = default density). */
+  /** Tile line-spacing scale 0.4–2 for full-page (1 ≈ line-by-line). */
   spacing: number;
 };
 

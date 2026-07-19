@@ -52,8 +52,8 @@ export function normalizeWatermark(
       Number.isFinite(input.spacing)
         ? Number(input.spacing)
         : DEFAULT_WATERMARK_STYLE.spacing,
-      0.5,
-      2.5,
+      0.4,
+      2,
     ),
   };
 }
@@ -87,12 +87,13 @@ export function watermarkLabel(options: WatermarkOptions | null | undefined) {
   return options.layout === "full" ? "Watermark · Full" : "Watermark · On";
 }
 
-/** Grid density for full-page tiling from spacing scale. */
+/** Grid density for full-page tiling from spacing scale (line-by-line rows). */
 export function watermarkTileGrid(spacing = 1): { cols: number; rows: number } {
-  const s = clamp(spacing, 0.5, 2.5);
+  const s = clamp(spacing, 0.4, 2);
   return {
-    cols: Math.max(2, Math.round(3 / s)),
-    rows: Math.max(2, Math.round(4 / s)),
+    cols: Math.max(2, Math.round(3.2 / s)),
+    // Dense vertical lines — was ~4 rows, now ~line-by-line coverage
+    rows: Math.max(10, Math.round(20 / s)),
   };
 }
 
@@ -170,12 +171,12 @@ export function applyWatermarkToCanvas(
   };
 
   if (options.layout === "full") {
-    // Step from text size so long phrases don't overlap / run off edges
-    const stepX = Math.max(textW * 1.25, pageW / 3.2) * spacing;
-    const stepY = Math.max(fontSize * 3.4, pageH / 5.5) * spacing;
+    // Line-by-line density: vertical step ≈ one text line (not pageH/5)
+    const stepX = Math.max(textW * 1.12, textW + fontSize * 0.35) * spacing;
+    const stepY = Math.max(fontSize * 1.28, fontSize + 2) * spacing;
     const startX = stepX * 0.5;
-    const startY = stepY * 0.5;
-    for (let y = startY; y < pageH; y += stepY) {
+    const startY = Math.max(fontSize * 0.7, stepY * 0.45);
+    for (let y = startY; y < pageH - fontSize * 0.2; y += stepY) {
       for (let x = startX; x < pageW; x += stepX) {
         drawAt(x, y);
       }
