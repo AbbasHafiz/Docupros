@@ -582,6 +582,16 @@ export function PageEditor({ documentId, pageId }: Props) {
     setStatus("Duplicated — drag to place");
   };
 
+  const textDragCleanupRef = useRef<(() => void) | null>(null);
+  const [textDragging, setTextDragging] = useState(false);
+
+  const endTextDrag = () => {
+    textDragRef.current = null;
+    setTextDragging(false);
+    textDragCleanupRef.current?.();
+    textDragCleanupRef.current = null;
+  };
+
   const onFloatingTextPointerDown = (
     e: React.PointerEvent,
     mode: "move" | "resize" = "move",
@@ -589,48 +599,112 @@ export function PageEditor({ documentId, pageId }: Props) {
     if (!floatingText) return;
     e.stopPropagation();
     e.preventDefault();
-    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    const pt = pointerToImage(e);
+    const target = e.currentTarget as HTMLElement;
+    target.setPointerCapture?.(e.pointerId);
+
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    const startX = floatingText.x;
+    const startY = floatingText.y;
+    const startSize = floatingText.fontSize;
+    const startScrollLeft = stageRef.current?.scrollLeft ?? 0;
+    const startScrollTop = stageRef.current?.scrollTop ?? 0;
+
     textDragRef.current = {
       mode,
-      ox: pt.x - floatingText.x,
-      oy: pt.y - floatingText.y,
-      startX: floatingText.x,
-      startY: floatingText.y,
-      startSize: floatingText.fontSize,
-      startClientX: e.clientX,
-      startClientY: e.clientY,
+      ox: 0,
+      oy: 0,
+      startX,
+      startY,
+      startSize,
+      startClientX,
+      startClientY,
     };
-  };
+    setTextDragging(true);
 
-  const onFloatingTextPointerMove = (e: React.PointerEvent) => {
-    if (!floatingText || !textDragRef.current) return;
-    e.stopPropagation();
-    e.preventDefault();
-    const drag = textDragRef.current;
-    if (drag.mode === "move") {
-      const pt = pointerToImage(e);
-      setFloatingText({
-        ...floatingText,
-        x: pt.x - drag.ox,
-        y: pt.y - drag.oy,
-      });
-      return;
+    // Freeze stage scroll so dragging text doesn't pan the page
+    const stage = stageRef.current;
+    const prevOverflow = stage?.style.overflow ?? "";
+    if (stage) {
+      stage.style.overflow = "hidden";
+      stage.scrollLeft = startScrollLeft;
+      stage.scrollTop = startScrollTop;
     }
-    // Resize from corner handle — drag out = bigger
-    const dx = e.clientX - drag.startClientX;
-    const dy = e.clientY - drag.startClientY;
-    const delta = (dx + dy) / Math.max(1, scale);
-    const next = Math.round(
-      Math.min(120, Math.max(12, drag.startSize + delta * 0.35)),
-    );
-    setFloatingText({ ...floatingText, fontSize: next });
-    setAddFontSize(next);
+
+    const onWinMove = (ev: PointerEvent) => {
+      if (!textDragRef.current) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      // Keep scroll frozen if the browser still tries to pan
+      if (stage) {
+        stage.scrollLeft = startScrollLeft;
+        stage.scrollTop = startScrollTop;
+      }
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const { w, h } = naturalSizeRef.current;
+      const drag = textDragRef.current;
+      if (drag.mode === "move") {
+        const dx =
+          ((ev.clientX - drag.startClientX) / Math.max(1, rect.width)) * w;
+        const dy =
+          ((ev.clientY - drag.startClientY) / Math.max(1, rect.height)) * h;
+        setFloatingText((cur) =>
+          cur
+            ? {
+                ...cur,
+                x: drag.startX + dx,
+                y: drag.startY + dy,
+              }
+            : cur,
+        );
+        return;
+      }
+      const rdx = ev.clientX - drag.startClientX;
+      const rdy = ev.clientY - drag.startClientY;
+      const delta = (rdx + rdy) / Math.max(1, scale);
+      const next = Math.round(
+        Math.min(120, Math.max(12, drag.startSize + delta * 0.35)),
+      );
+      setFloatingText((cur) => (cur ? { ...cur, fontSize: next } : cur));
+      setAddFontSize(next);
+    };
+
+    const onWinUp = (ev: PointerEvent) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      try {
+        target.releasePointerCapture?.(ev.pointerId);
+      } catch {
+        /* ignore */
+      }
+      if (stage) stage.style.overflow = prevOverflow;
+      endTextDrag();
+    };
+
+    window.addEventListener("pointermove", onWinMove, { passive: false });
+    window.addEventListener("pointerup", onWinUp, { passive: false });
+    window.addEventListener("pointercancel", onWinUp, { passive: false });
+    // Block native touch scrolling on the stage while dragging
+    const onTouchMove = (ev: TouchEvent) => {
+      ev.preventDefault();
+    };
+    stage?.addEventListener("touchmove", onTouchMove, { passive: false });
+
+    textDragCleanupRef.current = () => {
+      window.removeEventListener("pointermove", onWinMove);
+      window.removeEventListener("pointerup", onWinUp);
+      window.removeEventListener("pointercancel", onWinUp);
+      stage?.removeEventListener("touchmove", onTouchMove);
+      if (stage) stage.style.overflow = prevOverflow;
+    };
   };
 
   const onFloatingTextPointerUp = (e: React.PointerEvent) => {
     e.stopPropagation();
-    textDragRef.current = null;
+    e.preventDefault();
+    endTextDrag();
   };
 
   const onFloatingTextTouchStart = (e: React.TouchEvent) => {
@@ -1319,7 +1393,7 @@ export function PageEditor({ documentId, pageId }: Props) {
           </div>
 
           <div
-            className={`cs-stage ${zoom > 1 ? "is-zoomed" : ""} ${isDrawingTool ? "is-drawing" : ""}`}
+            className={`cs-stage ${zoom > 1 ? "is-zoomed" : ""} ${isDrawingTool ? "is-drawing" : ""} ${floatingText ? "has-text-edit" : ""} ${textDragging ? "is-text-dragging" : ""}`}
             ref={stageRef}
             onTouchStart={(e) => {
               if (floatingText) return;
@@ -1407,11 +1481,19 @@ export function PageEditor({ documentId, pageId }: Props) {
                   style={{
                     left: floatingText.x * scale,
                     top: floatingText.y * scale,
-                    transform: `rotate(${floatingText.rotation}deg)`,
-                    transformOrigin: "top left",
                   }}
-                  onTouchStart={onFloatingTextTouchStart}
-                  onTouchMove={onFloatingTextTouchMove}
+                  onTouchStart={(e) => {
+                    // Don't let stage pinch/scroll steal touches on the text UI
+                    if (e.touches.length === 1) e.stopPropagation();
+                    onFloatingTextTouchStart(e);
+                  }}
+                  onTouchMove={(e) => {
+                    if (textDragging || e.touches.length === 1) {
+                      e.stopPropagation();
+                      if (textDragging) e.preventDefault();
+                    }
+                    onFloatingTextTouchMove(e);
+                  }}
                   onTouchEnd={onFloatingTextTouchEnd}
                 >
                   <TextFormatToolbar
@@ -1427,16 +1509,18 @@ export function PageEditor({ documentId, pageId }: Props) {
                     onMovePointerDown={(e) =>
                       onFloatingTextPointerDown(e, "move")
                     }
-                    onMovePointerMove={onFloatingTextPointerMove}
-                    onMovePointerUp={onFloatingTextPointerUp}
                     onDuplicate={duplicateFloatingText}
                     onDelete={cancelFloatingText}
                   />
                   <div
                     className="text-edit-selection"
-                    onPointerMove={onFloatingTextPointerMove}
-                    onPointerUp={onFloatingTextPointerUp}
-                    onPointerCancel={onFloatingTextPointerUp}
+                    style={{
+                      transform:
+                        floatingText.rotation !== 0
+                          ? `rotate(${floatingText.rotation}deg)`
+                          : undefined,
+                      transformOrigin: "top left",
+                    }}
                   >
                     <input
                       className="text-edit-input"
@@ -1470,7 +1554,6 @@ export function PageEditor({ documentId, pageId }: Props) {
                       onPointerDown={(e) =>
                         onFloatingTextPointerDown(e, "resize")
                       }
-                      onPointerMove={onFloatingTextPointerMove}
                       onPointerUp={onFloatingTextPointerUp}
                       onPointerCancel={onFloatingTextPointerUp}
                     />
