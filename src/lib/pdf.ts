@@ -7,12 +7,19 @@ import {
   triggerPrintWhenReady,
   writePrintDocument,
 } from "./printWindow";
+import type { DocumentRecord } from "./types";
 import {
   applyWatermarkToPdfPage,
   normalizeWatermark,
+  resolveDocWatermark,
   stampWatermarkOnImage,
   type WatermarkOptions,
 } from "./watermark";
+import { blobFromPdfBase64 } from "./pdfConvert";
+
+/** Keep export pixels close to the source page (only shrink extreme cases). */
+const PDF_EXPORT_MAX_SIDE = 6000;
+const PDF_EXPORT_JPEG_QUALITY = 0.98;
 
 /**
  * Normalize any image data-URL (PNG/WebP/JPEG) to a JPEG data-URL.
@@ -21,7 +28,8 @@ import {
  */
 async function toPdfJpeg(
   src: string,
-  maxSide = 3300,
+  maxSide = PDF_EXPORT_MAX_SIDE,
+  quality = PDF_EXPORT_JPEG_QUALITY,
 ): Promise<{ dataUrl: string; w: number; h: number }> {
   const img = await loadImage(src);
   let w = img.naturalWidth || 1;
@@ -38,13 +46,51 @@ async function toPdfJpeg(
   // White background so transparent PNGs don't become black/empty
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, w, h);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   ctx.drawImage(img, 0, 0, w, h);
 
   return {
-    dataUrl: canvas.toDataURL("image/jpeg", 0.93),
+    dataUrl: canvas.toDataURL("image/jpeg", quality),
     w,
     h,
   };
+}
+
+/**
+ * True when we can ship the uploaded PDF bytes as-is (no page edits / watermark).
+ */
+export function canUseOriginalPdf(doc: DocumentRecord): boolean {
+  if (!doc.sourcePdfBase64) return false;
+  if (resolveDocWatermark(doc)) return false;
+  if (!doc.pages.length) return false;
+  return doc.pages.every(
+    (p) =>
+      Boolean(p.imageDataUrl) &&
+      (p.filter ?? "original") === "original" &&
+      (!p.originalDataUrl || p.imageDataUrl === p.originalDataUrl),
+  );
+}
+
+/** Prefer original PDF bytes; otherwise build a high-quality PDF from page images. */
+export async function exportDocumentPreferOriginal(
+  doc: DocumentRecord,
+  options?: {
+    watermark?: string | WatermarkOptions;
+    a4?: boolean;
+  },
+): Promise<Blob> {
+  const watermark = normalizeWatermark(
+    options?.watermark ?? resolveDocWatermark(doc) ?? doc.watermark,
+  );
+  if (!watermark && canUseOriginalPdf(doc) && doc.sourcePdfBase64) {
+    return blobFromPdfBase64(doc.sourcePdfBase64);
+  }
+  const pages = doc.pages.map((p) => p.imageDataUrl).filter(Boolean);
+  return exportDocumentPdf(doc.title, pages, {
+    watermark: watermark ?? undefined,
+    a4: options?.a4,
+  });
 }
 
 export async function exportDocumentPdf(
@@ -85,7 +131,7 @@ export async function exportDocumentPdf(
       // Full A4/legal scans → fill the PDF page edge-to-edge
       const nearA4 = Math.abs(imgRatio - pageRatio) / pageRatio < 0.1;
       if (nearA4) {
-        pdf.addImage(dataUrl, "JPEG", 0, 0, pageW, pageH, undefined, "FAST");
+        pdf.addImage(dataUrl, "JPEG", 0, 0, pageW, pageH, undefined, "NONE");
       } else {
         let drawW = pageW;
         let drawH = pageH;
@@ -96,15 +142,15 @@ export async function exportDocumentPdf(
         }
         const x = (pageW - drawW) / 2;
         const y = (pageH - drawH) / 2;
-        pdf.addImage(dataUrl, "JPEG", x, y, drawW, drawH, undefined, "FAST");
+        pdf.addImage(dataUrl, "JPEG", x, y, drawW, drawH, undefined, "NONE");
       }
       if (watermark) {
         await applyWatermarkToPdfPage(pdf, pageW, pageH, watermark, "mm");
       }
     } else {
       const orientation = w >= h ? "l" : "p";
-      // Cap page size in points for PDF viewers / jsPDF stability
-      const maxPt = 2000;
+      // Keep page box close to pixel size so viewers don't downscale the embed
+      const maxPt = 4500;
       const ptScale = Math.min(1, maxPt / Math.max(w, h));
       const pw = Math.max(1, Math.round(w * ptScale));
       const ph = Math.max(1, Math.round(h * ptScale));
@@ -118,7 +164,7 @@ export async function exportDocumentPdf(
       } else {
         pdf.addPage([pw, ph], orientation);
       }
-      pdf.addImage(dataUrl, "JPEG", 0, 0, pw, ph, undefined, "FAST");
+      pdf.addImage(dataUrl, "JPEG", 0, 0, pw, ph, undefined, "NONE");
       if (watermark) {
         await applyWatermarkToPdfPage(pdf, pw, ph, watermark, "pt");
       }
@@ -152,10 +198,10 @@ export async function printDocumentPages(
   const watermark = normalizeWatermark(options?.watermark);
 
   try {
-    // Normalize to JPEG so print preview always has visible content
+    // Higher-res print preview (was 1800) so PDF pages stay sharp
     const normalized: string[] = [];
     for (const src of pageDataUrls) {
-      const { dataUrl } = await toPdfJpeg(src, 1800);
+      const { dataUrl } = await toPdfJpeg(src, 3600, PDF_EXPORT_JPEG_QUALITY);
       const stamped = watermark
         ? await stampWatermarkOnImage(dataUrl, watermark)
         : dataUrl;

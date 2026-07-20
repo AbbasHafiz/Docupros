@@ -37,7 +37,7 @@ export default function ImportPdfFormPage() {
       const buffer = await file.arrayBuffer();
       setStatus("Rendering pages…");
       // Render first (what users see), then inspect forms
-      const images = await pdfFileToImageDataUrls(buffer.slice(0), 1.75);
+      const images = await pdfFileToImageDataUrls(buffer.slice(0));
       setStatus("Checking form fields…");
       const info = await inspectPdfForm(buffer.slice(0));
       setBase64(info.base64);
@@ -133,8 +133,8 @@ export default function ImportPdfFormPage() {
       <AppHeader title="Import PDF" backHref="/" />
       <main className="home" style={{ paddingBottom: "2rem" }}>
         <p className="hero-copy" style={{ marginBottom: "1.25rem" }}>
-          Upload a PDF bill or document — pages are rendered as images so you
-          can view, edit, and export them.
+          Upload a PDF bill or document — pages stay at original quality so
+          export matches the file you imported.
         </p>
 
         <label className="field">

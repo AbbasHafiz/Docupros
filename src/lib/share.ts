@@ -1,8 +1,13 @@
 import type { DocumentRecord } from "./types";
-import { downloadBlob, exportDocumentPdf } from "./pdf";
+import {
+  downloadBlob,
+  exportDocumentPreferOriginal,
+  canUseOriginalPdf,
+} from "./pdf";
 import { cnicFilename, exportCnicSizedPdf } from "./cnic";
 import { loadImage } from "./imageProcessing";
 import { resolveDocWatermark, stampWatermarkOnImage } from "./watermark";
+import { blobFromPdfBase64 } from "./pdfConvert";
 
 export type SharePlatform =
   | "system"
@@ -52,13 +57,18 @@ export async function prepareDocumentPdf(
     });
     filename = cnicFilename(doc.title);
     text = `${title} — Pakistan CNIC (85.6×53.98 mm)`;
+  } else if (canUseOriginalPdf(doc) && doc.sourcePdfBase64) {
+    blob = blobFromPdfBase64(doc.sourcePdfBase64);
+    filename = safeFilename(title, "pdf");
+    text = `${title} — original PDF from Docupros`;
   } else {
     const pages = doc.pages
       .map((p) => p.imageDataUrl)
       .filter(Boolean);
     if (!pages.length) throw new Error("No pages to share");
-    blob = await exportDocumentPdf(title, pages, {
-      a4: true,
+    blob = await exportDocumentPreferOriginal(doc, {
+      // Keep native page size for PDF-sourced docs; A4 only for camera scans
+      a4: !doc.sourcePdfBase64,
       watermark: resolveDocWatermark(doc) ?? doc.watermark,
     });
     filename = safeFilename(title, "pdf");

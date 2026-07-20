@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { AppHeader } from "./AppHeader";
 import type { DocumentRecord, ScanPage } from "@/lib/types";
 import { deleteDocument, getDocument, saveDocument } from "@/lib/storage";
-import { downloadBlob, exportDocumentPdf, printDocumentPages } from "@/lib/pdf";
+import { downloadBlob, exportDocumentPreferOriginal, printDocumentPages } from "@/lib/pdf";
 import { extractTextFromImages } from "@/lib/ocr";
 import { rebuildDocumentText } from "@/lib/editOperations";
 import { hashPassword } from "@/lib/toolsOps";
@@ -285,11 +285,7 @@ export function DocumentViewer({ id }: Props) {
     }
     setBusy(true);
     try {
-      const pages = doc.pages
-        .map((p) => p.imageDataUrl)
-        .filter((src) => Boolean(src));
-      if (!pages.length) throw new Error("No page images to export");
-      const blob = await exportDocumentPdf(doc.title, pages, {
+      const blob = await exportDocumentPreferOriginal(doc, {
         watermark: resolveDocWatermark(doc) ?? doc.watermark,
         a4,
       });
