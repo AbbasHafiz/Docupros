@@ -371,15 +371,22 @@ export async function drawFreeText(
   y: number,
   fontSize: number,
   color = "#111111",
-  options?: { fontFamily?: string },
+  options?: { fontFamily?: string; rotationDeg?: number },
 ): Promise<string> {
   if (!text.trim()) return imageSrc;
   const family = options?.fontFamily ?? DOC_TEXT_FONT;
+  const rotationDeg = options?.rotationDeg ?? 0;
   return withCanvas(imageSrc, (ctx) => {
     ctx.fillStyle = color;
     ctx.font = `${fontSize}px ${family}`;
     ctx.textBaseline = "top";
-    ctx.fillText(text, x, y);
+    if (rotationDeg) {
+      ctx.translate(x, y);
+      ctx.rotate((rotationDeg * Math.PI) / 180);
+      ctx.fillText(text, 0, 0);
+    } else {
+      ctx.fillText(text, x, y);
+    }
   });
 }
 
