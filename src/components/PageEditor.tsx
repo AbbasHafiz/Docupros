@@ -546,15 +546,6 @@ export function PageEditor({ documentId, pageId }: Props) {
     setStatus(null);
   };
 
-  const bumpFloatingSize = (delta: number) => {
-    if (!floatingText) return;
-    const next = Math.round(
-      Math.min(120, Math.max(8, floatingText.fontSize + delta)),
-    );
-    setFloatingText({ ...floatingText, fontSize: next });
-    setAddFontSize(next);
-  };
-
   const setTextRotation = (deg: number) => {
     // Normalize to -180…180 for a friendly slider range
     let next = Math.round(deg);
