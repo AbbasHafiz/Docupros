@@ -2328,6 +2328,296 @@ body.app-shell:has(.doc-view) {
   max-height: none !important;
 }
 
+.text-edit-anchor {
+  position: absolute;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  pointer-events: auto;
+  will-change: transform;
+}
+
+.text-edit-anchor.is-ocr {
+  z-index: 9;
+}
+
+.text-format-toolbar {
+  position: relative;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.28rem 0.35rem;
+  background: #ffffff;
+  border: 1.5px solid #7dd3fc;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(11, 28, 36, 0.18);
+  max-width: min(96vw, 22rem);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tft-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 7px;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  flex: 0 0 auto;
+  font-size: 0.92rem;
+  line-height: 1;
+}
+
+.tft-btn:hover,
+.tft-btn.is-open {
+  background: #e0f2fe;
+}
+
+.tft-btn.is-active {
+  background: #bae6fd;
+  color: #0369a1;
+}
+
+.tft-btn.tft-danger:hover {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.tft-btn.has-caret {
+  width: auto;
+  padding: 0 0.25rem;
+  gap: 0.1rem;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tft-b {
+  font-weight: 800;
+  font-family: Georgia, serif;
+}
+
+.tft-i {
+  font-style: italic;
+  font-family: Georgia, serif;
+  font-weight: 700;
+}
+
+.tft-aa {
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: -0.02em;
+}
+
+.tft-caret {
+  font-size: 0.55rem;
+  opacity: 0.7;
+  margin-left: 0.05rem;
+}
+
+.tft-size-icon {
+  position: relative;
+  font-weight: 800;
+  font-family: Georgia, serif;
+  font-size: 0.95rem;
+}
+
+.tft-size-arrows {
+  position: absolute;
+  right: -0.55rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.55rem;
+  opacity: 0.75;
+}
+
+.tft-palette {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  border: 1.5px solid #94a3b8;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(
+    #ef4444,
+    #eab308,
+    #22c55e,
+    #3b82f6,
+    #a855f7,
+    #ef4444
+  );
+}
+
+.tft-palette-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.25);
+}
+
+.tft-link,
+.tft-move-icon,
+.tft-dup,
+.tft-trash {
+  font-size: 0.95rem;
+}
+
+.tft-dup {
+  letter-spacing: -0.15em;
+  font-weight: 700;
+}
+
+.tft-panel {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 12;
+  min-width: 10rem;
+  padding: 0.55rem;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+  display: grid;
+  gap: 0.45rem;
+}
+
+.tft-panel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.tft-panel-btn {
+  appearance: none;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 0.35rem 0.55rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tft-panel-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.tft-font-panel {
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.tft-font-opt {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 0.45rem 0.5rem;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.tft-font-opt.is-active,
+.tft-font-opt:hover {
+  background: #e0f2fe;
+}
+
+.tft-color-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  grid-auto-flow: unset;
+}
+
+.tft-swatch {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.tft-swatch.is-active {
+  border-color: #0f172a;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+.tft-custom-color {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+}
+
+.tft-custom-color input {
+  width: 150%;
+  height: 150%;
+  margin: -25%;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.tft-link-panel {
+  min-width: 14rem;
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.tft-link-panel input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.9rem;
+}
+
+.text-edit-selection {
+  position: relative;
+  border: 1.5px solid #38bdf8;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 2px 10px rgba(11, 28, 36, 0.12);
+  min-width: 7rem;
+  max-width: min(90vw, 18rem);
+}
+
+.text-edit-input {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  width: 100%;
+  min-width: 7rem;
+  padding: 0.35rem 0.55rem;
+  outline: none;
+  line-height: 1.2;
+}
+
+.btn-apply-changes {
+  background: #16a34a !important;
+  border-color: #15803d !important;
+  color: #fff !important;
+  font-weight: 800;
+  flex: 1;
+  min-height: 2.75rem;
+}
+
 .floating-text {
   position: absolute;
   z-index: 5;
