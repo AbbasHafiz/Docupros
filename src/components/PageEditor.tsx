@@ -243,6 +243,12 @@ export function PageEditor({ documentId, pageId }: Props) {
 
   /** Move/place mode: format toolbar closed — clear the canvas for positioning */
   const isTextPlacing = Boolean(floatingText && !textFormatOpen);
+  /** Finger = text edit only; zoom via − / + controls */
+  const isTextTouchMode =
+    Boolean(floatingText) ||
+    imageTool === "addText" ||
+    imageTool === "editText" ||
+    placeMode === "text";
 
   const syncHistoryFlags = () => {
     setCanUndo(undoStackRef.current.length > 0);
@@ -719,27 +725,23 @@ export function PageEditor({ documentId, pageId }: Props) {
   };
 
   const onFloatingTextTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 2 && floatingText) {
+    // Two-finger pinch is for zoom controls only — don't resize text by pinch
+    if (e.touches.length >= 2) {
       textDragRef.current = null;
-      const [a, b] = [e.touches[0], e.touches[1]];
-      textPinchRef.current = {
-        startDist: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
-        startSize: floatingText.fontSize,
-      };
+      textPinchRef.current = null;
+      e.stopPropagation();
     }
   };
 
   const onFloatingTextTouchMove = (e: React.TouchEvent) => {
-    if (e.touches.length === 2 && textPinchRef.current && floatingText) {
+    if (e.touches.length >= 2) {
       e.preventDefault();
-      const [a, b] = [e.touches[0], e.touches[1]];
-      const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-      const ratio = dist / Math.max(1, textPinchRef.current.startDist);
-      const next = Math.round(
-        Math.min(120, Math.max(12, textPinchRef.current.startSize * ratio)),
-      );
-      setFloatingText({ ...floatingText, fontSize: next });
-      setAddFontSize(next);
+      e.stopPropagation();
+      return;
+    }
+    if (textDragging) {
+      e.preventDefault();
+      e.stopPropagation();
     }
   };
 
@@ -1268,7 +1270,7 @@ export function PageEditor({ documentId, pageId }: Props) {
 
   return (
     <div
-      className={`cs-editor ${isTextPlacing ? "is-text-placing" : ""} ${textDragging ? "is-text-dragging" : ""} ${imageTool === "addText" ? "is-add-text" : ""}`}
+      className={`cs-editor ${isTextPlacing ? "is-text-placing" : ""} ${textDragging ? "is-text-dragging" : ""} ${imageTool === "addText" ? "is-add-text" : ""} ${isTextTouchMode ? "is-text-touch" : ""}`}
     >
       <header className="cs-topbar">
         <button
@@ -1359,8 +1361,11 @@ export function PageEditor({ documentId, pageId }: Props) {
         </div>
       ) : (
         <>
-          {!isTextPlacing && (
-          <div className="cs-zoom-bar" role="toolbar" aria-label="Zoom">
+          <div
+            className={`cs-zoom-bar ${isTextPlacing ? "is-compact" : ""}`}
+            role="toolbar"
+            aria-label="Zoom"
+          >
             <button
               type="button"
               className="cs-zoom-btn"
@@ -1394,27 +1399,32 @@ export function PageEditor({ documentId, pageId }: Props) {
             >
               Fit
             </button>
-            {needsPrecisionZoom && zoom < 1.5 && (
+            {isTextTouchMode ? (
+              <span className="cs-zoom-hint">−/+ zoom · finger moves text</span>
+            ) : needsPrecisionZoom && zoom < 1.5 ? (
               <span className="cs-zoom-hint">
                 {isDrawingTool
                   ? "Pinch to zoom · one finger erase"
                   : "Pinch or + · scroll to pan"}
               </span>
-            )}
-            {zoom >= 1.5 && isDrawingTool && (
+            ) : null}
+            {!isTextTouchMode && zoom >= 1.5 && isDrawingTool && (
               <span className="cs-zoom-hint">One finger erase · pinch zoom</span>
             )}
-            {zoom > 1 && !needsPrecisionZoom && (
+            {!isTextTouchMode && zoom > 1 && !needsPrecisionZoom && (
               <span className="cs-zoom-hint">Scroll to pan</span>
             )}
           </div>
-          )}
 
           <div
-            className={`cs-stage ${zoom > 1 ? "is-zoomed" : ""} ${isDrawingTool ? "is-drawing" : ""} ${floatingText ? "has-text-edit" : ""} ${textDragging ? "is-text-dragging" : ""} ${isTextPlacing ? "is-placing-text" : ""}`}
+            className={`cs-stage ${zoom > 1 ? "is-zoomed" : ""} ${isDrawingTool ? "is-drawing" : ""} ${floatingText ? "has-text-edit" : ""} ${textDragging ? "is-text-dragging" : ""} ${isTextPlacing ? "is-placing-text" : ""} ${isTextTouchMode ? "is-text-touch" : ""}`}
             ref={stageRef}
             onTouchStart={(e) => {
-              if (floatingText) return;
+              // Text tools: zoom only via −/+ buttons; finger is for editing
+              if (isTextTouchMode || floatingText) {
+                pinchRef.current = null;
+                return;
+              }
               if (e.touches.length >= 2) {
                 // Pinch = zoom only; cancel any erase/markup stroke from the first finger
                 ignoreStrokeRef.current = true;
@@ -1428,7 +1438,10 @@ export function PageEditor({ documentId, pageId }: Props) {
               }
             }}
             onTouchMove={(e) => {
-              if (floatingText) return;
+              if (isTextTouchMode || floatingText) {
+                pinchRef.current = null;
+                return;
+              }
               if (e.touches.length >= 2 && pinchRef.current) {
                 e.preventDefault();
                 ignoreStrokeRef.current = true;
@@ -1489,6 +1502,7 @@ export function PageEditor({ documentId, pageId }: Props) {
                 onPointerUp={onPointerUp}
                 onPointerCancel={onPointerUp}
                 onDoubleClick={() => {
+                  if (isTextTouchMode) return;
                   if (zoom < 2) setZoomClamped(2.25);
                   else zoomToFit();
                 }}
@@ -1501,15 +1515,10 @@ export function PageEditor({ documentId, pageId }: Props) {
                     top: floatingText.y * scale,
                   }}
                   onTouchStart={(e) => {
-                    // Don't let stage pinch/scroll steal touches on the text UI
                     if (e.touches.length === 1) e.stopPropagation();
                     onFloatingTextTouchStart(e);
                   }}
                   onTouchMove={(e) => {
-                    if (textDragging || e.touches.length === 1) {
-                      e.stopPropagation();
-                      if (textDragging) e.preventDefault();
-                    }
                     onFloatingTextTouchMove(e);
                   }}
                   onTouchEnd={onFloatingTextTouchEnd}
@@ -2173,7 +2182,28 @@ export function PageEditor({ documentId, pageId }: Props) {
 
       {isTextPlacing && !textDragging && (
         <div className="text-place-dock" role="toolbar" aria-label="Place text">
-          <span className="text-place-dock-hint">Drag text to place</span>
+          <div className="text-place-dock-zoom" role="group" aria-label="Zoom">
+            <button
+              type="button"
+              className="cs-zoom-btn"
+              aria-label="Zoom out"
+              disabled={zoom <= 1}
+              onClick={() => zoomBy(-0.25)}
+            >
+              −
+            </button>
+            <span className="text-place-dock-pct">{Math.round(zoom * 100)}%</span>
+            <button
+              type="button"
+              className="cs-zoom-btn"
+              aria-label="Zoom in"
+              disabled={zoom >= 8}
+              onClick={() => zoomBy(0.25)}
+            >
+              +
+            </button>
+          </div>
+          <span className="text-place-dock-hint">Finger moves text</span>
           <button
             type="button"
             className="text-place-dock-btn"

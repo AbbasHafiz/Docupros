@@ -416,6 +416,39 @@ body.app-shell:has(.doc-view) {
   display: none;
 }
 
+.cs-zoom-bar.is-compact {
+  padding: 0.3rem 0.65rem 0.1rem;
+}
+
+.cs-stage.is-text-touch {
+  /* Pan with one finger to scroll; no browser pinch-zoom (use −/+) */
+  touch-action: pan-x pan-y !important;
+}
+
+.cs-stage.is-text-touch.is-text-dragging,
+.cs-editor.is-text-dragging .cs-stage {
+  touch-action: none !important;
+}
+
+.cs-editor.is-text-touch .editor-canvas {
+  touch-action: pan-x pan-y !important;
+}
+
+.text-place-dock-zoom {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-right: 0.25rem;
+}
+
+.text-place-dock-pct {
+  min-width: 2.6rem;
+  text-align: center;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+}
+
 .cs-editor.is-text-placing .cs-stage,
 .cs-stage.is-placing-text {
   flex: 1;
