@@ -165,6 +165,8 @@ export function PageEditor({ documentId, pageId }: Props) {
   const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(
     null,
   );
+  /** When true, pointer stroke is a pinch leftover — do not erase/draw */
+  const ignoreStrokeRef = useRef(false);
   const undoStackRef = useRef<PageSnapshot[]>([]);
   const redoStackRef = useRef<PageSnapshot[]>([]);
   const [canUndo, setCanUndo] = useState(false);
@@ -688,6 +690,8 @@ export function PageEditor({ documentId, pageId }: Props) {
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (!page || cropRaw) return;
+    // Two-finger pinch: ignore secondary pointers and any stroke while pinching
+    if (!e.isPrimary || pinchRef.current || ignoreStrokeRef.current) return;
     const pt = pointerToImage(e);
 
     if (placeMode === "text") {
@@ -765,6 +769,7 @@ export function PageEditor({ documentId, pageId }: Props) {
 
   const onPointerMove = (e: React.PointerEvent) => {
     if (!drawing || !page) return;
+    if (pinchRef.current || ignoreStrokeRef.current) return;
     const pt = pointerToImage(e);
 
     strokePoints.current.push(pt);
@@ -802,7 +807,27 @@ export function PageEditor({ documentId, pageId }: Props) {
     });
   };
 
+  const abortDrawingStroke = () => {
+    strokePoints.current = [];
+    setDrawing(false);
+    const canvas = canvasRef.current;
+    const src = page?.imageDataUrl;
+    if (!canvas || !src) return;
+    void loadImage(src).then((img) => {
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    });
+  };
+
   const onPointerUp = () => {
+    // Pinch used two fingers — discard any partial stroke, do not erase
+    if (pinchRef.current || ignoreStrokeRef.current) {
+      strokePoints.current = [];
+      setDrawing(false);
+      return;
+    }
     if (!drawing || !page) return;
     setDrawing(false);
     const points = strokePoints.current;
@@ -1149,7 +1174,14 @@ export function PageEditor({ documentId, pageId }: Props) {
               Fit
             </button>
             {needsPrecisionZoom && zoom < 1.5 && (
-              <span className="cs-zoom-hint">Pinch or + · scroll to pan</span>
+              <span className="cs-zoom-hint">
+                {isDrawingTool
+                  ? "Pinch to zoom · one finger erase"
+                  : "Pinch or + · scroll to pan"}
+              </span>
+            )}
+            {zoom >= 1.5 && isDrawingTool && (
+              <span className="cs-zoom-hint">One finger erase · pinch zoom</span>
             )}
             {zoom > 1 && !needsPrecisionZoom && (
               <span className="cs-zoom-hint">Scroll to pan</span>
@@ -1161,24 +1193,52 @@ export function PageEditor({ documentId, pageId }: Props) {
             ref={stageRef}
             onTouchStart={(e) => {
               if (floatingText) return;
-              if (e.touches.length === 2) {
+              if (e.touches.length >= 2) {
+                // Pinch = zoom only; cancel any erase/markup stroke from the first finger
+                ignoreStrokeRef.current = true;
+                abortDrawingStroke();
                 const [a, b] = [e.touches[0], e.touches[1]];
-                const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+                const dist = Math.hypot(
+                  a.clientX - b.clientX,
+                  a.clientY - b.clientY,
+                );
                 pinchRef.current = { startDist: dist, startZoom: zoom };
               }
             }}
             onTouchMove={(e) => {
               if (floatingText) return;
-              if (e.touches.length === 2 && pinchRef.current) {
+              if (e.touches.length >= 2 && pinchRef.current) {
                 e.preventDefault();
+                ignoreStrokeRef.current = true;
                 const [a, b] = [e.touches[0], e.touches[1]];
-                const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+                const dist = Math.hypot(
+                  a.clientX - b.clientX,
+                  a.clientY - b.clientY,
+                );
                 const ratio = dist / Math.max(1, pinchRef.current.startDist);
                 setZoomClamped(pinchRef.current.startZoom * ratio);
               }
             }}
-            onTouchEnd={() => {
-              pinchRef.current = null;
+            onTouchEnd={(e) => {
+              if (e.touches.length < 2) {
+                pinchRef.current = null;
+              }
+              if (e.touches.length === 0) {
+                // Let companion pointerup see the flag, then allow one-finger erase again
+                window.setTimeout(() => {
+                  ignoreStrokeRef.current = false;
+                }, 80);
+              }
+            }}
+            onTouchCancel={(e) => {
+              if (e.touches.length < 2) {
+                pinchRef.current = null;
+              }
+              if (e.touches.length === 0) {
+                window.setTimeout(() => {
+                  ignoreStrokeRef.current = false;
+                }, 80);
+              }
             }}
           >
             <button
@@ -1477,7 +1537,8 @@ export function PageEditor({ documentId, pageId }: Props) {
         <div className="cs-sheet">
           <p className="panel-title">Smart Erase</p>
           <p className="hint">
-            Brush over stains, stamps, or marks — fills with paper color.
+            Pinch with two fingers to zoom, then brush with one finger over
+            stains, stamps, or marks — fills with paper color.
           </p>
           <label className="slider-row">
             <span>Brush {brushSize}px</span>
@@ -1593,7 +1654,7 @@ export function PageEditor({ documentId, pageId }: Props) {
         <div className="cs-sheet">
           <p className="panel-title">Remove Handwriting</p>
           <p className="hint">
-            Auto-clean pen marks, or brush only handwriting-like ink.
+            Pinch to zoom, then brush with one finger. Or auto-clean pen marks.
           </p>
           <div className="row-actions">
             {(
