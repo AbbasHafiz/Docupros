@@ -40,9 +40,15 @@ function base64ToUint8(base64: string): Uint8Array {
   return bytes;
 }
 
+/** ~216 DPI on letter pages; keep imported PDFs sharp instead of downscaling. */
+export const PDF_RENDER_SCALE = 3;
+/** Safety cap only for extreme pages (avoids OOM); well above old 2000px limit. */
+export const PDF_RENDER_MAX_SIDE = 5000;
+export const PDF_JPEG_QUALITY = 0.98;
+
 export async function pdfFileToImageDataUrls(
   file: ArrayBuffer,
-  scale = 1.75,
+  scale = PDF_RENDER_SCALE,
 ): Promise<string[]> {
   const pdfjs = await loadPdfJs();
   const data = new Uint8Array(file);
@@ -54,10 +60,11 @@ export async function pdfFileToImageDataUrls(
 
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
-    // Cap long edge so huge bills don't OOM mobile browsers
     const base = page.getViewport({ scale: 1 });
-    const maxSide = 2000;
-    const fit = Math.min(scale, maxSide / Math.max(base.width, base.height));
+    const fit = Math.min(
+      scale,
+      PDF_RENDER_MAX_SIDE / Math.max(base.width, base.height, 1),
+    );
     const viewport = page.getViewport({ scale: fit });
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.floor(viewport.width));
@@ -72,7 +79,7 @@ export async function pdfFileToImageDataUrls(
       canvas,
     } as Parameters<typeof page.render>[0]);
     await renderTask.promise;
-    urls.push(canvas.toDataURL("image/jpeg", 0.92));
+    urls.push(canvas.toDataURL("image/jpeg", PDF_JPEG_QUALITY));
   }
 
   if (!urls.length) {
@@ -84,12 +91,18 @@ export async function pdfFileToImageDataUrls(
 /** Re-render a stored source PDF (base64) into page images. */
 export async function pdfBase64ToImageDataUrls(
   sourcePdfBase64: string,
-  scale = 1.75,
+  scale = PDF_RENDER_SCALE,
 ): Promise<string[]> {
   const bytes = base64ToUint8(sourcePdfBase64);
   // Copy into a fresh ArrayBuffer — pdf.js may detach the view
   const copy = bytes.slice().buffer;
   return pdfFileToImageDataUrls(copy, scale);
+}
+
+/** Download / share the original uploaded PDF bytes (no re-encode). */
+export function blobFromPdfBase64(sourcePdfBase64: string): Blob {
+  const bytes = base64ToUint8(sourcePdfBase64);
+  return new Blob([bytes.slice().buffer], { type: "application/pdf" });
 }
 
 /** True if this looks like the old blank placeholder import card. */
@@ -104,7 +117,8 @@ export function looksLikePdfPlaceholder(dataUrl: string | undefined): boolean {
 }
 
 export async function pdfFileToLongImage(file: ArrayBuffer): Promise<string> {
-  const pages = await pdfFileToImageDataUrls(file, 1.25);
+  // Long-image stitch can stay lighter; still above the old 1.25 default
+  const pages = await pdfFileToImageDataUrls(file, 2);
   return imagesToLongImage(pages);
 }
 
