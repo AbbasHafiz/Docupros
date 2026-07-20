@@ -306,6 +306,8 @@ export function FormFillEditor({ documentId }: Props) {
           style={{
             width: size.w * zoom,
             height: size.h * zoom,
+            maxWidth: "none",
+            flexShrink: 0,
           }}
           onClick={onPageClick}
         >
@@ -313,7 +315,13 @@ export function FormFillEditor({ documentId }: Props) {
           <img
             src={page.imageDataUrl}
             alt={`Page ${pageIndex + 1}`}
-            style={{ width: size.w * zoom, height: size.h * zoom }}
+            style={{
+              width: size.w * zoom,
+              height: size.h * zoom,
+              maxWidth: "none",
+              maxHeight: "none",
+              display: "block",
+            }}
           />
           {pageFields.map((field) => (
             <div

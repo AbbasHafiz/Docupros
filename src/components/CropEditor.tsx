@@ -214,14 +214,24 @@ export function CropEditor({ imageSrc, quad, onChange }: Props) {
       >
         <div
           className="crop-zoom-inner"
-          style={{ width: displayW, height: displayH }}
+          style={{
+            width: displayW,
+            height: displayH,
+            flex: "0 0 auto",
+            maxWidth: "none",
+          }}
         >
           <canvas
             ref={canvasRef}
             width={size.w}
             height={size.h}
             className="crop-canvas"
-            style={{ width: displayW, height: displayH }}
+            style={{
+              width: displayW,
+              height: displayH,
+              maxWidth: "none",
+              maxHeight: "none",
+            }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}

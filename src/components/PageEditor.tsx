@@ -240,12 +240,19 @@ export function PageEditor({ documentId, pageId }: Props) {
         h: img.naturalHeight,
       };
       setScale(s);
-      canvas.width = Math.max(1, Math.round(img.naturalWidth * s));
-      canvas.height = Math.max(1, Math.round(img.naturalHeight * s));
+      const dw = Math.max(1, Math.round(img.naturalWidth * s));
+      const dh = Math.max(1, Math.round(img.naturalHeight * s));
+      canvas.width = dw;
+      canvas.height = dh;
+      // Explicit CSS pixels so zoom is not clamped by max-width: 100%
+      canvas.style.width = `${dw}px`;
+      canvas.style.height = `${dh}px`;
+      canvas.style.maxWidth = "none";
+      canvas.style.maxHeight = "none";
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, dw, dh);
+      ctx.drawImage(img, 0, 0, dw, dh);
 
       const list = overlayWords ?? words;
       if (imageTool === "editText" && list.length) {
