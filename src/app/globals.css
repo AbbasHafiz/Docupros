@@ -2380,6 +2380,26 @@ body.app-shell:has(.doc-view) {
   padding: 0 1.1rem;
 }
 
+.ocr-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(15, 23, 42, 0.45);
+  display: grid;
+  place-items: end center;
+  padding: 0;
+}
+
+.ocr-modal {
+  width: min(100%, 960px);
+  max-height: min(78dvh, 640px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 18px 18px 0 0;
+  padding: 1rem 1.1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -12px 40px rgba(15, 23, 42, 0.25);
+}
+
 .ocr-head {
   display: flex;
   justify-content: space-between;
