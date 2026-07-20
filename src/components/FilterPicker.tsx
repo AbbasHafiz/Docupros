@@ -20,7 +20,7 @@ export function FilterPicker({ value, previewSrc, previews, onChange }: Props) {
   const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(
     null,
   );
-  const clampZoom = (z: number) => Math.min(3.5, Math.max(1, z));
+  const clampZoom = (z: number) => Math.min(8, Math.max(1, z));
 
   return (
     <div className="filter-panel">
@@ -45,7 +45,7 @@ export function FilterPicker({ value, previewSrc, previews, onChange }: Props) {
         <button
           type="button"
           className="cs-zoom-btn"
-          disabled={zoom >= 3.5}
+          disabled={zoom >= 8}
           onClick={() => setZoom((z) => clampZoom(z + 0.25))}
           aria-label="Zoom in"
         >

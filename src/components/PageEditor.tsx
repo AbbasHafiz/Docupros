@@ -281,7 +281,7 @@ export function PageEditor({ documentId, pageId }: Props) {
   }, [page, paintCanvas, cropRaw]);
 
   const setZoomClamped = (next: number) => {
-    const z = Math.min(4, Math.max(1, Math.round(next * 100) / 100));
+    const z = Math.min(8, Math.max(1, Math.round(next * 100) / 100));
     setZoom(z);
   };
 
@@ -1136,7 +1136,7 @@ export function PageEditor({ documentId, pageId }: Props) {
               type="button"
               className="cs-zoom-btn"
               aria-label="Zoom in"
-              disabled={zoom >= 4}
+              disabled={zoom >= 8}
               onClick={() => zoomBy(0.25)}
             >
               +
