@@ -56,6 +56,10 @@ import {
   type BgQuality,
 } from "@/lib/removeBackground";
 import { ShareSheet } from "./ShareSheet";
+import {
+  TextFormatToolbar,
+  type TextFormatValue,
+} from "./TextFormatToolbar";
 
 const ERASE_FILL_PRESETS: {
   id: string;
@@ -159,6 +163,10 @@ export function PageEditor({ documentId, pageId }: Props) {
   const [editText, setEditText] = useState("");
   const [editFontSize, setEditFontSize] = useState(28);
   const [editColor, setEditColor] = useState("#111111");
+  const [editBold, setEditBold] = useState(false);
+  const [editItalic, setEditItalic] = useState(false);
+  const [editFontFamily, setEditFontFamily] = useState(DOC_TEXT_FONT);
+  const [editLink, setEditLink] = useState("");
   const [findText, setFindText] = useState("");
   const [replaceText, setReplaceText] = useState("");
   const [ocrProgress, setOcrProgress] = useState(0);
@@ -166,6 +174,10 @@ export function PageEditor({ documentId, pageId }: Props) {
   const [addFontSize, setAddFontSize] = useState(28);
   const [addColor, setAddColor] = useState("#111111");
   const [addRotation, setAddRotation] = useState(0);
+  const [addBold, setAddBold] = useState(false);
+  const [addItalic, setAddItalic] = useState(false);
+  const [addFontFamily, setAddFontFamily] = useState(DOC_TEXT_FONT);
+  const [addLink, setAddLink] = useState("");
   const [placeMode, setPlaceMode] = useState<"text" | "sign" | null>(null);
   const [floatingText, setFloatingText] = useState<{
     text: string;
@@ -174,6 +186,10 @@ export function PageEditor({ documentId, pageId }: Props) {
     fontSize: number;
     color: string;
     rotation: number;
+    bold: boolean;
+    italic: boolean;
+    fontFamily: string;
+    link: string;
   } | null>(null);
   const [scale, setScale] = useState(1);
   const [zoom, setZoom] = useState(1);
@@ -506,13 +522,19 @@ export function PageEditor({ documentId, pageId }: Props) {
         floatingText.fontSize,
         floatingText.color,
         {
-          fontFamily: DOC_TEXT_FONT,
+          fontFamily: floatingText.fontFamily,
           rotationDeg: floatingText.rotation,
+          bold: floatingText.bold,
+          italic: floatingText.italic,
         },
       );
       await persistPage(next);
       setFloatingText(null);
-      setStatus("Text added");
+      setStatus(
+        floatingText.link.trim()
+          ? `Text added · link saved (${floatingText.link})`
+          : "Text added",
+      );
       window.setTimeout(() => setStatus(null), 1600);
     } finally {
       setBusy(false);
@@ -522,15 +544,6 @@ export function PageEditor({ documentId, pageId }: Props) {
   const cancelFloatingText = () => {
     setFloatingText(null);
     setStatus(null);
-  };
-
-  const bumpFloatingSize = (delta: number) => {
-    if (!floatingText) return;
-    const next = Math.round(
-      Math.min(120, Math.max(8, floatingText.fontSize + delta)),
-    );
-    setFloatingText({ ...floatingText, fontSize: next });
-    setAddFontSize(next);
   };
 
   const setTextRotation = (deg: number) => {
@@ -546,6 +559,27 @@ export function PageEditor({ documentId, pageId }: Props) {
 
   const bumpTextRotation = (delta: number) => {
     setTextRotation((floatingText?.rotation ?? addRotation) + delta);
+  };
+
+  const patchFloatingFormat = (patch: Partial<TextFormatValue>) => {
+    if (!floatingText) return;
+    setFloatingText({ ...floatingText, ...patch });
+    if (patch.fontSize != null) setAddFontSize(patch.fontSize);
+    if (patch.color != null) setAddColor(patch.color);
+    if (patch.bold != null) setAddBold(patch.bold);
+    if (patch.italic != null) setAddItalic(patch.italic);
+    if (patch.fontFamily != null) setAddFontFamily(patch.fontFamily);
+    if (patch.link != null) setAddLink(patch.link);
+  };
+
+  const duplicateFloatingText = () => {
+    if (!floatingText) return;
+    setFloatingText({
+      ...floatingText,
+      x: floatingText.x + 24,
+      y: floatingText.y + 24,
+    });
+    setStatus("Duplicated — drag to place");
   };
 
   const bumpEditSize = (delta: number) => {
@@ -789,11 +823,13 @@ export function PageEditor({ documentId, pageId }: Props) {
         fontSize: size,
         color: matched.color,
         rotation: addRotation,
+        bold: addBold,
+        italic: addItalic,
+        fontFamily: addFontFamily,
+        link: addLink,
       });
       setPlaceMode(null);
-      setStatus(
-        "Drag to move · rotate / A± to adjust · Apply when done",
-      );
+      setStatus("Use the toolbar to format · Apply when done");
       return;
     }
 
@@ -831,6 +867,10 @@ export function PageEditor({ documentId, pageId }: Props) {
         setEditText(hit.text);
         const size = fontSizeFromBBox(hit.bbox);
         setEditFontSize(size);
+        setEditBold(false);
+        setEditItalic(false);
+        setEditFontFamily(DOC_TEXT_FONT);
+        setEditLink("");
         void sampleInkColor(page.imageDataUrl, hit.bbox).then(setEditColor);
         if (zoom < 2) setZoomClamped(2);
         // scroll after zoom repaint
@@ -982,9 +1022,11 @@ export function PageEditor({ documentId, pageId }: Props) {
     setBusy(true);
     try {
       const next = await replaceWordOnImage(page.imageDataUrl, word, editText, {
-        fontFamily: DOC_TEXT_FONT,
+        fontFamily: editFontFamily,
         color: editColor,
         fontSize: editFontSize,
+        bold: editBold,
+        italic: editItalic,
         fitWidth: false,
       });
       const nextWords = words
@@ -995,7 +1037,11 @@ export function PageEditor({ documentId, pageId }: Props) {
         ocrWords: nextWords,
         ocrText: nextWords.map((w) => w.text).join(" "),
       });
-      setStatus("Text updated");
+      setStatus(
+        editLink.trim()
+          ? `Text updated · link noted (${editLink})`
+          : "Text updated",
+      );
     } finally {
       setBusy(false);
     }
@@ -1363,14 +1409,10 @@ export function PageEditor({ documentId, pageId }: Props) {
               />
               {floatingText && (
                 <div
-                  className="floating-text"
+                  className="text-edit-anchor"
                   style={{
                     left: floatingText.x * scale,
                     top: floatingText.y * scale,
-                    fontSize: floatingText.fontSize * scale,
-                    color: floatingText.color,
-                    fontFamily: DOC_TEXT_FONT,
-                    fontWeight: 400,
                     transform: `rotate(${floatingText.rotation}deg)`,
                     transformOrigin: "top left",
                   }}
@@ -1378,99 +1420,132 @@ export function PageEditor({ documentId, pageId }: Props) {
                   onTouchMove={onFloatingTextTouchMove}
                   onTouchEnd={onFloatingTextTouchEnd}
                 >
-                  <button
-                    type="button"
-                    className="floating-text-move"
-                    aria-label="Move text"
-                    onPointerDown={(e) => onFloatingTextPointerDown(e, "move")}
-                    onPointerMove={onFloatingTextPointerMove}
-                    onPointerUp={onFloatingTextPointerUp}
-                    onPointerCancel={onFloatingTextPointerUp}
-                  >
-                    <span aria-hidden>⠿</span>
-                  </button>
-                  <div
-                    className="floating-text-body"
-                    onPointerDown={(e) => onFloatingTextPointerDown(e, "move")}
-                    onPointerMove={onFloatingTextPointerMove}
-                    onPointerUp={onFloatingTextPointerUp}
-                    onPointerCancel={onFloatingTextPointerUp}
-                  >
-                    {floatingText.text || "Text"}
-                  </div>
-                  <div className="floating-text-tools">
-                    <button
-                      type="button"
-                      className="floating-text-btn"
-                      aria-label="Rotate left"
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        bumpTextRotation(-15);
-                      }}
-                    >
-                      ↺
-                    </button>
-                    <button
-                      type="button"
-                      className="floating-text-btn"
-                      aria-label="Rotate right"
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        bumpTextRotation(15);
-                      }}
-                    >
-                      ↻
-                    </button>
-                    <button
-                      type="button"
-                      className="floating-text-btn"
-                      aria-label="Smaller"
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        bumpFloatingSize(-4);
-                      }}
-                    >
-                      A−
-                    </button>
-                    <button
-                      type="button"
-                      className="floating-text-btn"
-                      aria-label="Larger"
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        bumpFloatingSize(4);
-                      }}
-                    >
-                      A+
-                    </button>
-                    <button
-                      type="button"
-                      className="floating-text-btn is-apply"
-                      aria-label="Apply text"
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void applyFloatingText();
-                      }}
-                    >
-                      ✓
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    className="floating-text-resize"
-                    aria-label="Resize text"
-                    onPointerDown={(e) => onFloatingTextPointerDown(e, "resize")}
-                    onPointerMove={onFloatingTextPointerMove}
-                    onPointerUp={onFloatingTextPointerUp}
-                    onPointerCancel={onFloatingTextPointerUp}
+                  <TextFormatToolbar
+                    value={{
+                      bold: floatingText.bold,
+                      italic: floatingText.italic,
+                      fontFamily: floatingText.fontFamily,
+                      fontSize: floatingText.fontSize,
+                      color: floatingText.color,
+                      link: floatingText.link,
+                    }}
+                    onChange={patchFloatingFormat}
+                    onMovePointerDown={(e) =>
+                      onFloatingTextPointerDown(e, "move")
+                    }
+                    onMovePointerMove={onFloatingTextPointerMove}
+                    onMovePointerUp={onFloatingTextPointerUp}
+                    onDuplicate={duplicateFloatingText}
+                    onDelete={cancelFloatingText}
                   />
+                  <div
+                    className="text-edit-selection"
+                    onPointerMove={onFloatingTextPointerMove}
+                    onPointerUp={onFloatingTextPointerUp}
+                    onPointerCancel={onFloatingTextPointerUp}
+                  >
+                    <input
+                      className="text-edit-input"
+                      value={floatingText.text}
+                      placeholder="Type your text"
+                      aria-label="Text content"
+                      style={{
+                        fontSize: Math.max(
+                          14,
+                          floatingText.fontSize * scale,
+                        ),
+                        fontFamily: floatingText.fontFamily,
+                        fontWeight: floatingText.bold ? 700 : 400,
+                        fontStyle: floatingText.italic ? "italic" : "normal",
+                        color: floatingText.color,
+                      }}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setAddText(v);
+                        setFloatingText({
+                          ...floatingText,
+                          text: v,
+                        });
+                      }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                    />
+                    <button
+                      type="button"
+                      className="floating-text-resize"
+                      aria-label="Resize text"
+                      onPointerDown={(e) =>
+                        onFloatingTextPointerDown(e, "resize")
+                      }
+                      onPointerMove={onFloatingTextPointerMove}
+                      onPointerUp={onFloatingTextPointerUp}
+                      onPointerCancel={onFloatingTextPointerUp}
+                    />
+                  </div>
                 </div>
               )}
+              {imageTool === "editText" &&
+                selectedWordId &&
+                (() => {
+                  const word = words.find((w) => w.id === selectedWordId);
+                  if (!word) return null;
+                  const left = word.bbox.x0 * scale;
+                  const top = Math.max(0, word.bbox.y0 * scale - 4);
+                  return (
+                    <div
+                      className="text-edit-anchor is-ocr"
+                      style={{
+                        left,
+                        top,
+                        transformOrigin: "top left",
+                      }}
+                    >
+                      <TextFormatToolbar
+                        value={{
+                          bold: editBold,
+                          italic: editItalic,
+                          fontFamily: editFontFamily,
+                          fontSize: editFontSize,
+                          color: editColor,
+                          link: editLink,
+                        }}
+                        onChange={(patch) => {
+                          if (patch.bold != null) setEditBold(patch.bold);
+                          if (patch.italic != null) setEditItalic(patch.italic);
+                          if (patch.fontFamily != null)
+                            setEditFontFamily(patch.fontFamily);
+                          if (patch.fontSize != null)
+                            setEditFontSize(patch.fontSize);
+                          if (patch.color != null) setEditColor(patch.color);
+                          if (patch.link != null) setEditLink(patch.link);
+                        }}
+                        showMove={false}
+                        showDuplicate={false}
+                        onDelete={() => void eraseSelectedWord()}
+                      />
+                      <div className="text-edit-selection">
+                        <input
+                          className="text-edit-input"
+                          value={editText}
+                          placeholder="Type your text"
+                          aria-label="Edit selected text"
+                          style={{
+                            fontSize: Math.max(14, editFontSize * scale * 0.85),
+                            fontFamily: editFontFamily,
+                            fontWeight: editBold ? 700 : 400,
+                            fontStyle: editItalic ? "italic" : "normal",
+                            color: editColor,
+                            minWidth: Math.max(
+                              80,
+                              (word.bbox.x1 - word.bbox.x0) * scale,
+                            ),
+                          }}
+                          onChange={(e) => setEditText(e.target.value)}
+                          onPointerDown={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
             </div>
           </div>
 
@@ -1549,54 +1624,17 @@ export function PageEditor({ documentId, pageId }: Props) {
           <p className="panel-title">Edit Text</p>
           {selectedWordId ? (
             <div className="text-edit-box">
-              <label className="field">
-                <span>Selected</span>
-                <input
-                  value={editText}
-                  onChange={(e) => setEditText(e.target.value)}
-                  style={{ fontFamily: DOC_TEXT_FONT, fontSize: "1.05rem" }}
-                />
-              </label>
-              <div className="font-size-row">
-                <span className="hint">
-                  Size matches document · {editFontSize}px
-                </span>
-                <div className="row-actions">
-                  <button
-                    type="button"
-                    className="btn-secondary font-size-btn"
-                    aria-label="Decrease font size"
-                    onClick={() => bumpEditSize(-2)}
-                  >
-                    A−
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary font-size-btn"
-                    aria-label="Increase font size"
-                    onClick={() => bumpEditSize(2)}
-                  >
-                    A+
-                  </button>
-                </div>
-              </div>
-              <label className="slider-row">
-                <span>Fine tune</span>
-                <input
-                  type="range"
-                  min={8}
-                  max={96}
-                  value={editFontSize}
-                  onChange={(e) => setEditFontSize(Number(e.target.value))}
-                />
-              </label>
-              <div className="row-actions">
+              <p className="hint">
+                Use the floating toolbar on the page for bold, italic, size,
+                font, and color.
+              </p>
+              <div className="row-actions" style={{ marginTop: "0.35rem" }}>
                 <button
                   type="button"
-                  className="btn-primary"
+                  className="btn-primary btn-apply-changes"
                   onClick={() => void applyWordEdit()}
                 >
-                  Replace
+                  Apply changes ›
                 </button>
                 <button
                   type="button"
@@ -1609,8 +1647,7 @@ export function PageEditor({ documentId, pageId }: Props) {
             </div>
           ) : (
             <p className="hint">
-              Tap a highlighted word — replacement uses the same document font
-              and size (adjust with A+/A−).
+              Tap a highlighted word — then format with the toolbar and apply.
             </p>
           )}
           <div className="text-edit-box">
@@ -1884,145 +1921,80 @@ export function PageEditor({ documentId, pageId }: Props) {
           <p className="panel-title">Add Text</p>
           <p className="hint">
             {floatingText
-              ? "Drag ⠿ to move · ↺↻ to rotate · A+/A− to resize · Apply."
+              ? "Format with the floating toolbar · rotate below · Apply changes."
               : placeMode === "text"
-                ? "Tap the page — size matches nearby document text."
-                : "Place text that matches the document font and size."}
+                ? "Tap the page to place text."
+                : "Place text, then format with the toolbar on the page."}
           </p>
-          <label className="field">
-            <span>Text</span>
-            <input
-              value={addText}
-              onChange={(e) => {
-                const v = e.target.value;
-                setAddText(v);
-                if (floatingText) {
-                  setFloatingText({ ...floatingText, text: v || "Text" });
-                }
-              }}
-              placeholder="Type text"
-              style={{ fontFamily: DOC_TEXT_FONT, fontSize: "1.05rem" }}
-            />
-          </label>
-          <div className="font-size-row">
-            <span className="hint">
-              Size · {floatingText?.fontSize ?? addFontSize}px
-            </span>
-            <div className="row-actions">
-              <button
-                type="button"
-                className="btn-secondary font-size-btn"
-                aria-label="Decrease font size"
-                onClick={() => {
-                  if (floatingText) bumpFloatingSize(-2);
-                  else
-                    setAddFontSize((s) =>
-                      Math.round(Math.min(120, Math.max(8, s - 2))),
-                    );
+          {!floatingText && (
+            <label className="field">
+              <span>Text</span>
+              <input
+                value={addText}
+                onChange={(e) => setAddText(e.target.value)}
+                placeholder="Type your text"
+                style={{
+                  fontFamily: addFontFamily,
+                  fontSize: "1.05rem",
+                  fontWeight: addBold ? 700 : 400,
+                  fontStyle: addItalic ? "italic" : "normal",
+                  color: addColor,
                 }}
-              >
-                A−
-              </button>
-              <button
-                type="button"
-                className="btn-secondary font-size-btn"
-                aria-label="Increase font size"
-                onClick={() => {
-                  if (floatingText) bumpFloatingSize(2);
-                  else
-                    setAddFontSize((s) =>
-                      Math.round(Math.min(120, Math.max(8, s + 2))),
-                    );
-                }}
-              >
-                A+
-              </button>
-            </div>
-          </div>
-          <label className="slider-row">
-            <span>Fine tune</span>
-            <input
-              type="range"
-              min={8}
-              max={96}
-              value={floatingText?.fontSize ?? addFontSize}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                setAddFontSize(n);
-                if (floatingText) {
-                  setFloatingText({ ...floatingText, fontSize: n });
-                }
-              }}
-            />
-          </label>
-          <div className="font-size-row">
-            <span className="hint">
-              Rotate · {floatingText?.rotation ?? addRotation}°
-            </span>
-            <div className="row-actions">
-              <button
-                type="button"
-                className="btn-secondary font-size-btn"
-                aria-label="Rotate left 15 degrees"
-                onClick={() => bumpTextRotation(-15)}
-              >
-                ↺
-              </button>
-              <button
-                type="button"
-                className="btn-secondary font-size-btn"
-                aria-label="Rotate right 15 degrees"
-                onClick={() => bumpTextRotation(15)}
-              >
-                ↻
-              </button>
-              <button
-                type="button"
-                className="btn-secondary font-size-btn"
-                aria-label="Reset rotation"
-                onClick={() => setTextRotation(0)}
-              >
-                0°
-              </button>
-            </div>
-          </div>
-          <label className="slider-row">
-            <span>Angle</span>
-            <input
-              type="range"
-              min={-180}
-              max={180}
-              step={1}
-              value={floatingText?.rotation ?? addRotation}
-              onChange={(e) => setTextRotation(Number(e.target.value))}
-            />
-          </label>
-          <div className="row-actions">
-            {["#111111", "#1f2937", "#e11d48", "#2563eb", "#16a34a"].map(
-              (c) => (
-                <button
-                  key={c}
-                  type="button"
-                  className={`swatch ${
-                    (floatingText?.color ?? addColor) === c ? "is-active" : ""
-                  }`}
-                  style={{ background: c }}
-                  onClick={() => {
-                    setAddColor(c);
-                    if (floatingText) {
-                      setFloatingText({ ...floatingText, color: c });
-                    }
-                  }}
+              />
+            </label>
+          )}
+          {(floatingText || placeMode === "text") && (
+            <>
+              <div className="font-size-row">
+                <span className="hint">
+                  Rotate · {floatingText?.rotation ?? addRotation}°
+                </span>
+                <div className="row-actions">
+                  <button
+                    type="button"
+                    className="btn-secondary font-size-btn"
+                    aria-label="Rotate left 15 degrees"
+                    onClick={() => bumpTextRotation(-15)}
+                  >
+                    ↺
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary font-size-btn"
+                    aria-label="Rotate right 15 degrees"
+                    onClick={() => bumpTextRotation(15)}
+                  >
+                    ↻
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary font-size-btn"
+                    aria-label="Reset rotation"
+                    onClick={() => setTextRotation(0)}
+                  >
+                    0°
+                  </button>
+                </div>
+              </div>
+              <label className="slider-row">
+                <span>Angle</span>
+                <input
+                  type="range"
+                  min={-180}
+                  max={180}
+                  step={1}
+                  value={floatingText?.rotation ?? addRotation}
+                  onChange={(e) => setTextRotation(Number(e.target.value))}
                 />
-              ),
-            )}
-          </div>
+              </label>
+            </>
+          )}
           {!floatingText ? (
             <button
               type="button"
               className={`btn-secondary ${placeMode === "text" ? "is-active-btn" : ""}`}
               onClick={() => {
-                if (!addText.trim()) setAddText("Text");
+                if (!addText.trim()) setAddText("Type your text");
                 setPlaceMode("text");
                 setStatus("Tap the page where you want the text");
               }}
@@ -2033,11 +2005,11 @@ export function PageEditor({ documentId, pageId }: Props) {
             <div className="row-actions" style={{ marginTop: "0.35rem" }}>
               <button
                 type="button"
-                className="btn-primary"
+                className="btn-primary btn-apply-changes"
                 disabled={busy || !floatingText.text.trim()}
                 onClick={() => void applyFloatingText()}
               >
-                Apply text
+                Apply changes ›
               </button>
               <button
                 type="button"

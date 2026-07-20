@@ -286,6 +286,17 @@ export async function rotateImage(
   return canvas.toDataURL("image/jpeg", 0.92);
 }
 
+function cssFont(
+  fontSize: number,
+  family: string,
+  bold?: boolean,
+  italic?: boolean,
+) {
+  const style = italic ? "italic" : "normal";
+  const weight = bold ? "700" : "400";
+  return `${style} ${weight} ${fontSize}px ${family}`;
+}
+
 export async function replaceWordOnImage(
   imageSrc: string,
   word: OcrWord,
@@ -294,6 +305,8 @@ export async function replaceWordOnImage(
     fontFamily?: string;
     color?: string;
     fontSize?: number;
+    bold?: boolean;
+    italic?: boolean;
     /** When false, keep chosen size even if slightly wider than the box. */
     fitWidth?: boolean;
   },
@@ -310,6 +323,8 @@ export async function replaceWordOnImage(
     const family = options?.fontFamily ?? DOC_TEXT_FONT;
     const color = options?.color ?? "#111111";
     const fitWidth = options?.fitWidth !== false;
+    const bold = options?.bold;
+    const italic = options?.italic;
 
     ctx.fillStyle = color;
     ctx.textBaseline = "middle";
@@ -317,14 +332,14 @@ export async function replaceWordOnImage(
 
     if (fitWidth) {
       for (let i = 0; i < 36; i++) {
-        ctx.font = `${fontSize}px ${family}`;
+        ctx.font = cssFont(fontSize, family, bold, italic);
         if (ctx.measureText(newText).width <= boxW * 1.08) break;
         fontSize -= 1;
         if (fontSize < 8) break;
       }
     }
 
-    ctx.font = `${fontSize}px ${family}`;
+    ctx.font = cssFont(fontSize, family, bold, italic);
     ctx.fillText(newText, x0 + 1, y0 + boxH / 2);
   });
 }
@@ -371,14 +386,19 @@ export async function drawFreeText(
   y: number,
   fontSize: number,
   color = "#111111",
-  options?: { fontFamily?: string; rotationDeg?: number },
+  options?: {
+    fontFamily?: string;
+    rotationDeg?: number;
+    bold?: boolean;
+    italic?: boolean;
+  },
 ): Promise<string> {
   if (!text.trim()) return imageSrc;
   const family = options?.fontFamily ?? DOC_TEXT_FONT;
   const rotationDeg = options?.rotationDeg ?? 0;
   return withCanvas(imageSrc, (ctx) => {
     ctx.fillStyle = color;
-    ctx.font = `${fontSize}px ${family}`;
+    ctx.font = cssFont(fontSize, family, options?.bold, options?.italic);
     ctx.textBaseline = "top";
     if (rotationDeg) {
       ctx.translate(x, y);
