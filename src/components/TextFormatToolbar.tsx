@@ -56,8 +56,6 @@ type Props = {
   value: TextFormatValue;
   onChange: (next: Partial<TextFormatValue>) => void;
   onMovePointerDown?: (e: React.PointerEvent) => void;
-  onMovePointerMove?: (e: React.PointerEvent) => void;
-  onMovePointerUp?: (e: React.PointerEvent) => void;
   onDuplicate?: () => void;
   onDelete: () => void;
   showMove?: boolean;
@@ -69,8 +67,6 @@ export function TextFormatToolbar({
   value,
   onChange,
   onMovePointerDown,
-  onMovePointerMove,
-  onMovePointerUp,
   onDuplicate,
   onDelete,
   showMove = true,
@@ -99,6 +95,7 @@ export function TextFormatToolbar({
       role="toolbar"
       aria-label="Text formatting"
       onPointerDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
     >
       <button
         type="button"
@@ -185,11 +182,9 @@ export function TextFormatToolbar({
           aria-label="Move text"
           onPointerDown={(e) => {
             e.preventDefault();
+            e.stopPropagation();
             onMovePointerDown?.(e);
           }}
-          onPointerMove={(e) => onMovePointerMove?.(e)}
-          onPointerUp={(e) => onMovePointerUp?.(e)}
-          onPointerCancel={(e) => onMovePointerUp?.(e)}
         >
           <span className="tft-move-icon" aria-hidden>
             ✥
