@@ -72,12 +72,20 @@ export function DocumentViewer({ id }: Props) {
   const pinchDistance = (a: React.Touch, b: React.Touch) =>
     Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 
+  // Close text panel immediately whenever this document is opened / switched
+  useEffect(() => {
+    setShowOcr(false);
+    setOcrDraft("");
+    setOcrRunning(false);
+    setOcrProgress(0);
+  }, [id]);
+
   useEffect(() => {
     let cancelled = false;
     void getDocument(id).then((d) => {
       if (cancelled) return;
       setDoc(d ?? null);
-      // Prefill draft if text was extracted before — do not auto-open the panel
+      // Saved OCR stays on the document for "View text" — panel stays closed
       if (d?.ocrText) {
         setOcrDraft(d.ocrText);
       }
@@ -633,55 +641,7 @@ export function DocumentViewer({ id }: Props) {
           </section>
         )}
 
-        {showOcr && (
-          <section className="ocr-panel">
-            <div className="ocr-head">
-              <h2>Document text</h2>
-              <div className="row-actions">
-                <button
-                  type="button"
-                  className="text-btn"
-                  onClick={() => void copyText()}
-                  disabled={!ocrDraft.trim()}
-                >
-                  Copy
-                </button>
-                <button
-                  type="button"
-                  className="text-btn"
-                  onClick={() => setShowOcr(false)}
-                >
-                  Done
-                </button>
-              </div>
-            </div>
-            <textarea
-              className="ocr-text"
-              value={ocrDraft}
-              onChange={(e) => setOcrDraft(e.target.value)}
-              rows={10}
-              placeholder="Extracted text appears here."
-            />
-            <div className="row-actions" style={{ marginTop: "0.65rem" }}>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => void saveOcrText()}
-                disabled={!ocrDraft.trim()}
-              >
-                Save edits
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => void runOcr()}
-                disabled={ocrRunning}
-              >
-                {ocrRunning ? `OCR ${ocrProgress}%` : "Extract again"}
-              </button>
-            </div>
-          </section>
-        )}
+        {/* OCR opens only after Extract text / View text — not on document load */}
       </div>
 
       <div className="doc-toolbar">
@@ -783,6 +743,67 @@ export function DocumentViewer({ id }: Props) {
           Delete
         </button>
       </div>
+
+      {showOcr && (
+        <div
+          className="ocr-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Document text"
+          onClick={() => setShowOcr(false)}
+        >
+          <section
+            className="ocr-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="ocr-head">
+              <h2>Document text</h2>
+              <div className="row-actions">
+                <button
+                  type="button"
+                  className="text-btn"
+                  onClick={() => void copyText()}
+                  disabled={!ocrDraft.trim()}
+                >
+                  Copy
+                </button>
+                <button
+                  type="button"
+                  className="text-btn"
+                  onClick={() => setShowOcr(false)}
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+            <textarea
+              className="ocr-text"
+              value={ocrDraft}
+              onChange={(e) => setOcrDraft(e.target.value)}
+              rows={12}
+              placeholder="Extracted text appears here."
+            />
+            <div className="row-actions" style={{ marginTop: "0.65rem" }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => void saveOcrText()}
+                disabled={!ocrDraft.trim()}
+              >
+                Save edits
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => void runOcr()}
+                disabled={ocrRunning}
+              >
+                {ocrRunning ? `OCR ${ocrProgress}%` : "Extract again"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       <ShareSheet
         doc={doc}

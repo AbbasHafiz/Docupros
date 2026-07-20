@@ -18,7 +18,7 @@ function DocumentInner() {
       </div>
     );
   }
-  return <DocumentViewer id={id} />;
+  return <DocumentViewer key={id} id={id} />;
 }
 
 export default function DocumentPage() {
