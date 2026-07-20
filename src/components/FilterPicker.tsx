@@ -52,7 +52,10 @@ export function FilterPicker({ value, previewSrc, previews, onChange }: Props) {
           +
         </button>
         {zoom <= 1.05 && (
-          <span className="cs-zoom-hint">Pinch to inspect</span>
+          <span className="cs-zoom-hint">Pinch to inspect · scroll</span>
+        )}
+        {zoom > 1.05 && (
+          <span className="cs-zoom-hint">Scroll to pan</span>
         )}
       </div>
       <div

@@ -452,24 +452,34 @@ body.app-shell:has(.doc-view) {
 .cs-stage {
   position: relative;
   flex: 1;
+  min-height: 0;
   display: grid;
   place-items: center;
   padding: 0.75rem;
   background: #eef1f2;
-  min-height: 42vh;
+  /* Scroll available whenever zoom controls are present */
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
 }
 
 .cs-stage.is-zoomed {
   display: block;
-  overflow: auto;
-  -webkit-overflow-scrolling: touch;
   place-items: unset;
-  touch-action: pan-x pan-y;
+  align-content: flex-start;
 }
 
-.cs-stage.is-zoomed .editor-canvas {
+.cs-stage.is-zoomed .editor-canvas,
+.cs-stage.is-zoomed .editor-canvas-stack {
   margin: 0.5rem auto;
   display: block;
+  max-width: none;
+}
+
+/* One-finger pan/scroll when zoomed; drawing tools keep capture */
+.cs-stage.is-zoomed:not(.is-drawing) .editor-canvas {
+  touch-action: pan-x pan-y pinch-zoom;
 }
 
 .cs-zoom-bar {
@@ -1315,14 +1325,21 @@ body.app-shell:has(.doc-view) {
   padding: 0.75rem;
   background: #eef1f2;
   flex: 1;
-  min-height: 40vh;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
 }
 
 .form-stage.is-zoomed {
   display: block;
-  overflow: auto;
-  -webkit-overflow-scrolling: touch;
   place-items: unset;
+  align-content: flex-start;
+}
+
+.form-stage.is-zoomed .form-page {
+  margin: 0.5rem auto;
 }
 
 .form-page {
@@ -1854,11 +1871,17 @@ body.app-shell:has(.doc-view) {
   background: #0b1c24;
   display: flex;
   justify-content: center;
+  align-items: flex-start;
   -webkit-overflow-scrolling: touch;
 }
 
 .crop-viewport.is-zoomed {
-  /* Keep pan/scroll available after pinch-zoom */
+  /* Pan/scroll the viewport; pinch still handled in JS */
+}
+
+.crop-viewport.is-zoomed .crop-canvas {
+  /* Allow finger-drag to scroll when zoomed (corners still work via pointer) */
+  touch-action: pan-x pan-y pinch-zoom;
 }
 
 .crop-zoom-inner {
@@ -1889,10 +1912,12 @@ body.app-shell:has(.doc-view) {
   overflow: auto;
   touch-action: pan-x pan-y;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .filter-preview.is-zoomed img {
   max-height: none;
+  display: block;
 }
 
 .step-actions.stacked {
@@ -1923,7 +1948,10 @@ body.app-shell:has(.doc-view) {
 
 .filter-preview {
   border-radius: 16px;
-  overflow: hidden;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
   background: #d7e4e9;
   max-height: 55vh;
   box-shadow: var(--shadow);
@@ -1932,6 +1960,9 @@ body.app-shell:has(.doc-view) {
 .filter-preview img {
   object-fit: contain;
   max-height: 55vh;
+  width: 100%;
+  height: auto;
+  display: block;
   background: #0b1c24;
 }
 
@@ -2032,7 +2063,7 @@ body.app-shell:has(.doc-view) {
 
 .doc-stage {
   flex: 1;
-  min-height: 10rem;
+  min-height: 0;
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -2040,7 +2071,7 @@ body.app-shell:has(.doc-view) {
   max-width: 960px;
   width: 100%;
   margin: 0 auto;
-  /* Always allow vertical + horizontal pan to inspect watermark / full page */
+  /* Always allow vertical + horizontal pan wherever zoom is available */
   overflow: auto;
   overscroll-behavior: contain;
   touch-action: pan-x pan-y;
@@ -2156,6 +2187,7 @@ body.app-shell:has(.doc-view) {
   border-radius: 0;
   background: #fff;
   box-shadow: none;
+  touch-action: pan-x pan-y pinch-zoom;
 }
 
 .doc-toolbar {

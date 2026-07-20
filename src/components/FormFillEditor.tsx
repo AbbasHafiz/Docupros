@@ -297,6 +297,7 @@ export function FormFillEditor({ documentId }: Props) {
         <button type="button" className="cs-zoom-fit" onClick={() => setZoom(1)}>
           Fit
         </button>
+        {zoom > 1 && <span className="cs-zoom-hint">Scroll to pan</span>}
       </div>
 
       <div className={`form-stage ${zoom > 1 ? "is-zoomed" : ""}`} ref={wrapRef}>
