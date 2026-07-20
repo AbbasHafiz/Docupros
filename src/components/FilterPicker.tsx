@@ -92,9 +92,16 @@ export function FilterPicker({ value, previewSrc, previews, onChange }: Props) {
               ? {
                   width: `${zoom * 100}%`,
                   maxWidth: "none",
+                  maxHeight: "none",
                   height: "auto",
+                  objectFit: "contain",
                 }
-              : undefined
+              : {
+                  width: "100%",
+                  height: "auto",
+                  maxHeight: "55vh",
+                  objectFit: "contain",
+                }
           }
         />
       </div>

@@ -453,6 +453,8 @@ body.app-shell:has(.doc-view) {
   position: relative;
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
   display: grid;
   place-items: center;
   padding: 0.75rem;
@@ -474,7 +476,9 @@ body.app-shell:has(.doc-view) {
 .cs-stage.is-zoomed .editor-canvas-stack {
   margin: 0.5rem auto;
   display: block;
-  max-width: none;
+  max-width: none !important;
+  max-height: none !important;
+  flex-shrink: 0;
 }
 
 /* One-finger pan/scroll when zoomed; drawing tools keep capture */
@@ -1326,6 +1330,8 @@ body.app-shell:has(.doc-view) {
   background: #eef1f2;
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
   overflow: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -1340,6 +1346,8 @@ body.app-shell:has(.doc-view) {
 
 .form-stage.is-zoomed .form-page {
   margin: 0.5rem auto;
+  max-width: none !important;
+  flex-shrink: 0;
 }
 
 .form-page {
@@ -1627,7 +1635,6 @@ body.app-shell:has(.doc-view) {
 .doc-thumb img,
 .page-thumb img,
 .filter-thumb img,
-.filter-preview img,
 .page-thumb-btn img {
   width: 100%;
   height: 100%;
@@ -1863,6 +1870,8 @@ body.app-shell:has(.doc-view) {
 
 .crop-viewport {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   max-height: min(48dvh, 520px);
   overflow: auto;
   overscroll-behavior: contain;
@@ -1916,7 +1925,11 @@ body.app-shell:has(.doc-view) {
 }
 
 .filter-preview.is-zoomed img {
-  max-height: none;
+  /* Inline style sets width to zoom%; never clamp back to 100% */
+  max-height: none !important;
+  max-width: none !important;
+  height: auto !important;
+  object-fit: contain !important;
   display: block;
 }
 
@@ -1954,6 +1967,8 @@ body.app-shell:has(.doc-view) {
   touch-action: pan-x pan-y;
   background: #d7e4e9;
   max-height: 55vh;
+  min-width: 0;
+  width: 100%;
   box-shadow: var(--shadow);
 }
 
@@ -2054,9 +2069,8 @@ body.app-shell:has(.doc-view) {
 .doc-scroll {
   flex: 1;
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  min-width: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -2064,14 +2078,13 @@ body.app-shell:has(.doc-view) {
 .doc-stage {
   flex: 1;
   min-height: 0;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  min-width: 0;
+  display: block;
   padding: 0.65rem 1.1rem 0.35rem;
   max-width: 960px;
   width: 100%;
   margin: 0 auto;
-  /* Always allow vertical + horizontal pan wherever zoom is available */
+  /* Stage stays fixed-size; zoomed page scrolls inside */
   overflow: auto;
   overscroll-behavior: contain;
   touch-action: pan-x pan-y;
@@ -2094,14 +2107,12 @@ body.app-shell:has(.doc-view) {
   flex: 1 1 auto;
 }
 
-.doc-stage.is-zoomed {
-  align-items: flex-start;
-  justify-content: flex-start;
-}
-
 .doc-stage.is-zoomed .doc-page-frame {
   display: block;
   margin: 0 auto;
+  /* Keep inline width % (zoom) — do not force width:auto */
+  max-width: none !important;
+  flex-shrink: 0;
 }
 
 .doc-page-frame {
@@ -2120,6 +2131,13 @@ body.app-shell:has(.doc-view) {
 
 .doc-page-frame .doc-page-image {
   max-height: none;
+  max-width: none;
+}
+
+.doc-stage.is-zoomed .doc-page-image {
+  max-width: none !important;
+  width: 100% !important;
+  height: auto !important;
 }
 
 .page-watermark-overlay {
@@ -2302,6 +2320,12 @@ body.app-shell:has(.doc-view) {
   display: inline-block;
   max-width: 100%;
   margin: 0.5rem auto;
+}
+
+.cs-stage.is-zoomed .editor-canvas-stack,
+.cs-stage.is-zoomed .editor-canvas {
+  max-width: none !important;
+  max-height: none !important;
 }
 
 .floating-text {

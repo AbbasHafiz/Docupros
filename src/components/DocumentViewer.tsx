@@ -531,6 +531,7 @@ export function DocumentViewer({ id }: Props) {
               width: `${Math.round(pageZoom * 100)}%`,
               maxWidth: pageZoom <= 1 ? "100%" : "none",
               maxHeight: "none",
+              height: "auto",
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -544,6 +545,7 @@ export function DocumentViewer({ id }: Props) {
                 height: "auto",
                 maxWidth: "none",
                 maxHeight: "none",
+                display: "block",
               }}
             />
             {/* CSS overlay while baking, or if bake failed — always show when watermark on */}
