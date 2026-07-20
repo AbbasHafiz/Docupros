@@ -224,6 +224,11 @@ export function PageEditor({ documentId, pageId }: Props) {
   const naturalSizeRef = useRef({ w: 1, h: 1 });
   const fitScaleRef = useRef(1);
   const stageRef = useRef<HTMLDivElement>(null);
+  const stackRef = useRef<HTMLDivElement>(null);
+  const scaleRef = useRef(1);
+  const floatingTextRef = useRef(floatingText);
+  floatingTextRef.current = floatingText;
+  scaleRef.current = scale;
   const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(
     null,
   );
@@ -589,85 +594,90 @@ export function PageEditor({ documentId, pageId }: Props) {
   const textDragCleanupRef = useRef<(() => void) | null>(null);
   const [textDragging, setTextDragging] = useState(false);
 
+  /** Screen point → image coords using the same scale as CSS left/top. */
+  const clientToImageOnStack = (clientX: number, clientY: number) => {
+    const stack = stackRef.current;
+    const s = Math.max(0.001, scaleRef.current || 1);
+    if (!stack) return { x: 0, y: 0 };
+    const rect = stack.getBoundingClientRect();
+    return {
+      x: (clientX - rect.left) / s,
+      y: (clientY - rect.top) / s,
+    };
+  };
+
   const endTextDrag = () => {
     textDragRef.current = null;
     setTextDragging(false);
-    textDragCleanupRef.current?.();
+    const cleanup = textDragCleanupRef.current;
     textDragCleanupRef.current = null;
+    cleanup?.();
   };
 
   const onFloatingTextPointerDown = (
     e: React.PointerEvent,
     mode: "move" | "resize" = "move",
   ) => {
-    if (!floatingText) return;
+    const ft = floatingTextRef.current;
+    if (!ft) return;
     e.stopPropagation();
     e.preventDefault();
-    const target = e.currentTarget as HTMLElement;
-    target.setPointerCapture?.(e.pointerId);
 
-    const startClientX = e.clientX;
-    const startClientY = e.clientY;
-    const startX = floatingText.x;
-    const startY = floatingText.y;
-    const startSize = floatingText.fontSize;
+    // Clear any stuck drag from a previous gesture
+    if (textDragCleanupRef.current) endTextDrag();
+
+    const target = e.currentTarget as HTMLElement;
+    try {
+      target.setPointerCapture?.(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+
+    const grab = clientToImageOnStack(e.clientX, e.clientY);
     const startScrollLeft = stageRef.current?.scrollLeft ?? 0;
     const startScrollTop = stageRef.current?.scrollTop ?? 0;
 
     textDragRef.current = {
       mode,
-      ox: 0,
-      oy: 0,
-      startX,
-      startY,
-      startSize,
-      startClientX,
-      startClientY,
+      ox: grab.x - ft.x,
+      oy: grab.y - ft.y,
+      startX: ft.x,
+      startY: ft.y,
+      startSize: ft.fontSize,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
     };
     setTextDragging(true);
 
-    // Freeze stage scroll so dragging text doesn't pan the page
     const stage = stageRef.current;
-    const prevOverflow = stage?.style.overflow ?? "";
-    if (stage) {
-      stage.style.overflow = "hidden";
-      stage.scrollLeft = startScrollLeft;
-      stage.scrollTop = startScrollTop;
-    }
+    // Do NOT toggle overflow:hidden — removing scrollbars shifts layout (~1–2")
 
     const onWinMove = (ev: PointerEvent) => {
-      if (!textDragRef.current) return;
+      const drag = textDragRef.current;
+      if (!drag) return;
       ev.preventDefault();
       ev.stopPropagation();
-      // Keep scroll frozen if the browser still tries to pan
       if (stage) {
         stage.scrollLeft = startScrollLeft;
         stage.scrollTop = startScrollTop;
       }
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
       const { w, h } = naturalSizeRef.current;
-      const drag = textDragRef.current;
+
       if (drag.mode === "move") {
-        const dx =
-          ((ev.clientX - drag.startClientX) / Math.max(1, rect.width)) * w;
-        const dy =
-          ((ev.clientY - drag.startClientY) / Math.max(1, rect.height)) * h;
-        setFloatingText((cur) =>
-          cur
-            ? {
-                ...cur,
-                x: drag.startX + dx,
-                y: drag.startY + dy,
-              }
-            : cur,
-        );
+        const pt = clientToImageOnStack(ev.clientX, ev.clientY);
+        // Keep grab point under the finger (matches CSS left/top = x*scale)
+        let x = pt.x - drag.ox;
+        let y = pt.y - drag.oy;
+        x = Math.max(-40, Math.min(w - 8, x));
+        y = Math.max(-40, Math.min(h - 8, y));
+        setFloatingText((cur) => (cur ? { ...cur, x, y } : cur));
         return;
       }
+
+      const s = Math.max(0.001, scaleRef.current || 1);
       const rdx = ev.clientX - drag.startClientX;
       const rdy = ev.clientY - drag.startClientY;
-      const delta = (rdx + rdy) / Math.max(1, scale);
+      const delta = (rdx + rdy) / s;
       const next = Math.round(
         Math.min(120, Math.max(12, drag.startSize + delta * 0.35)),
       );
@@ -675,24 +685,20 @@ export function PageEditor({ documentId, pageId }: Props) {
       setAddFontSize(next);
     };
 
-    const onWinUp = (ev: PointerEvent) => {
-      ev.preventDefault();
-      ev.stopPropagation();
+    const onWinUp = () => {
       try {
-        target.releasePointerCapture?.(ev.pointerId);
+        target.releasePointerCapture?.(e.pointerId);
       } catch {
         /* ignore */
       }
-      if (stage) stage.style.overflow = prevOverflow;
       endTextDrag();
     };
 
     window.addEventListener("pointermove", onWinMove, { passive: false });
-    window.addEventListener("pointerup", onWinUp, { passive: false });
-    window.addEventListener("pointercancel", onWinUp, { passive: false });
-    // Block native touch scrolling on the stage while dragging
+    window.addEventListener("pointerup", onWinUp);
+    window.addEventListener("pointercancel", onWinUp);
     const onTouchMove = (ev: TouchEvent) => {
-      ev.preventDefault();
+      if (textDragRef.current) ev.preventDefault();
     };
     stage?.addEventListener("touchmove", onTouchMove, { passive: false });
 
@@ -701,13 +707,11 @@ export function PageEditor({ documentId, pageId }: Props) {
       window.removeEventListener("pointerup", onWinUp);
       window.removeEventListener("pointercancel", onWinUp);
       stage?.removeEventListener("touchmove", onTouchMove);
-      if (stage) stage.style.overflow = prevOverflow;
     };
   };
 
   const onFloatingTextPointerUp = (e: React.PointerEvent) => {
     e.stopPropagation();
-    e.preventDefault();
     endTextDrag();
   };
 
@@ -1460,7 +1464,7 @@ export function PageEditor({ documentId, pageId }: Props) {
             >
               🗑
             </button>
-            <div className="editor-canvas-stack">
+            <div className="editor-canvas-stack" ref={stackRef}>
               <canvas
                 ref={canvasRef}
                 className={`editor-canvas ${
