@@ -77,10 +77,11 @@ export function DocumentViewer({ id }: Props) {
     void getDocument(id).then((d) => {
       if (cancelled) return;
       setDoc(d ?? null);
+      // Prefill draft if text was extracted before — do not auto-open the panel
       if (d?.ocrText) {
         setOcrDraft(d.ocrText);
-        setShowOcr(true);
       }
+      setShowOcr(false);
     });
     return () => {
       cancelled = true;
