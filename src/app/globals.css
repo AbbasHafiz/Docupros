@@ -2624,6 +2624,105 @@ body.app-shell:has(.doc-view) {
   touch-action: none;
 }
 
+.text-place-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.28rem 0.35rem;
+  background: #ffffff;
+  border: 1.5px solid #7dd3fc;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(11, 28, 36, 0.18);
+  touch-action: none;
+  max-width: min(96vw, 18rem);
+}
+
+.text-place-drag {
+  appearance: none;
+  border: 0;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-weight: 800;
+  font-size: 0.82rem;
+  border-radius: 8px;
+  padding: 0.4rem 0.65rem;
+  cursor: grab;
+  touch-action: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex: 1;
+  min-height: 2.1rem;
+}
+
+.text-place-drag:active {
+  cursor: grabbing;
+  background: #bae6fd;
+}
+
+.text-place-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 8px;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: none;
+  display: inline-grid;
+  place-items: center;
+}
+
+.text-place-btn:hover {
+  background: #e0f2fe;
+}
+
+.text-place-btn.is-apply {
+  background: #16a34a;
+  color: #fff;
+}
+
+.text-place-btn.is-apply:disabled {
+  opacity: 0.45;
+}
+
+.text-drag-strip {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 1.45rem;
+  border: 0;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.45);
+  border-radius: 5px 5px 0 0;
+  background: rgba(14, 165, 233, 0.12);
+  color: #0369a1;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: grab;
+  touch-action: none;
+  padding: 0.2rem 0.35rem;
+}
+
+.text-drag-strip:active {
+  cursor: grabbing;
+  background: rgba(14, 165, 233, 0.22);
+}
+
+.tft-btn.tft-done {
+  width: auto;
+  padding: 0 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  background: #0ea5e9;
+  color: #fff;
+  border-radius: 8px;
+}
+
 .text-edit-input {
   appearance: none;
   border: 0;

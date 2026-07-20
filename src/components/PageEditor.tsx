@@ -191,6 +191,8 @@ export function PageEditor({ documentId, pageId }: Props) {
     fontFamily: string;
     link: string;
   } | null>(null);
+  /** Format toolbar vs place/move mode (drag then finalize) */
+  const [textFormatOpen, setTextFormatOpen] = useState(false);
   const [scale, setScale] = useState(1);
   const [zoom, setZoom] = useState(1);
   const [inkColor, setInkColor] = useState("#e11d48");
@@ -530,6 +532,7 @@ export function PageEditor({ documentId, pageId }: Props) {
       );
       await persistPage(next);
       setFloatingText(null);
+      setTextFormatOpen(false);
       setStatus(
         floatingText.link.trim()
           ? `Text added · link saved (${floatingText.link})`
@@ -543,6 +546,7 @@ export function PageEditor({ documentId, pageId }: Props) {
 
   const cancelFloatingText = () => {
     setFloatingText(null);
+    setTextFormatOpen(false);
     setStatus(null);
   };
 
@@ -739,6 +743,7 @@ export function PageEditor({ documentId, pageId }: Props) {
   const selectTool = async (tool: ImageTool) => {
     setPlaceMode(null);
     setFloatingText(null);
+    setTextFormatOpen(false);
     setImageTool(tool);
     setTab("images");
 
@@ -883,7 +888,7 @@ export function PageEditor({ documentId, pageId }: Props) {
       const size = matched.fontSize || addFontSize;
       setAddFontSize(size);
       setAddColor(matched.color);
-      // Place a floating text box — drag handle to move, resize handle / A± to size
+      // Place text in move mode first — drag into position, then format / apply
       setFloatingText({
         text: label,
         x: pt.x,
@@ -896,8 +901,9 @@ export function PageEditor({ documentId, pageId }: Props) {
         fontFamily: addFontFamily,
         link: addLink,
       });
+      setTextFormatOpen(false);
       setPlaceMode(null);
-      setStatus("Use the toolbar to format · Apply when done");
+      setStatus("Drag text where you want · then Apply");
       return;
     }
 
@@ -1221,6 +1227,7 @@ export function PageEditor({ documentId, pageId }: Props) {
     setImageTool(null);
     setCropRaw(null);
     setFloatingText(null);
+    setTextFormatOpen(false);
     setPlaceMode(null);
     setZoom(1);
     clearHistory();
@@ -1496,22 +1503,70 @@ export function PageEditor({ documentId, pageId }: Props) {
                   }}
                   onTouchEnd={onFloatingTextTouchEnd}
                 >
-                  <TextFormatToolbar
-                    value={{
-                      bold: floatingText.bold,
-                      italic: floatingText.italic,
-                      fontFamily: floatingText.fontFamily,
-                      fontSize: floatingText.fontSize,
-                      color: floatingText.color,
-                      link: floatingText.link,
-                    }}
-                    onChange={patchFloatingFormat}
-                    onMovePointerDown={(e) =>
-                      onFloatingTextPointerDown(e, "move")
-                    }
-                    onDuplicate={duplicateFloatingText}
-                    onDelete={cancelFloatingText}
-                  />
+                  {textFormatOpen ? (
+                    <TextFormatToolbar
+                      value={{
+                        bold: floatingText.bold,
+                        italic: floatingText.italic,
+                        fontFamily: floatingText.fontFamily,
+                        fontSize: floatingText.fontSize,
+                        color: floatingText.color,
+                        link: floatingText.link,
+                      }}
+                      onChange={patchFloatingFormat}
+                      onMovePointerDown={(e) =>
+                        onFloatingTextPointerDown(e, "move")
+                      }
+                      onDuplicate={duplicateFloatingText}
+                      onDelete={cancelFloatingText}
+                      onClose={() => {
+                        setTextFormatOpen(false);
+                        setStatus("Drag text where you want · then Apply");
+                      }}
+                    />
+                  ) : (
+                    <div
+                      className="text-place-bar"
+                      role="toolbar"
+                      aria-label="Place text"
+                    >
+                      <button
+                        type="button"
+                        className="text-place-drag"
+                        aria-label="Drag to move text"
+                        onPointerDown={(e) =>
+                          onFloatingTextPointerDown(e, "move")
+                        }
+                      >
+                        <span aria-hidden>✥</span> Drag
+                      </button>
+                      <button
+                        type="button"
+                        className="text-place-btn"
+                        aria-label="Open format toolbar"
+                        onClick={() => setTextFormatOpen(true)}
+                      >
+                        Aa
+                      </button>
+                      <button
+                        type="button"
+                        className="text-place-btn is-apply"
+                        aria-label="Apply text"
+                        disabled={busy || !floatingText.text.trim()}
+                        onClick={() => void applyFloatingText()}
+                      >
+                        ✓
+                      </button>
+                      <button
+                        type="button"
+                        className="text-place-btn"
+                        aria-label="Cancel text"
+                        onClick={cancelFloatingText}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
                   <div
                     className="text-edit-selection"
                     style={{
@@ -1522,6 +1577,16 @@ export function PageEditor({ documentId, pageId }: Props) {
                       transformOrigin: "top left",
                     }}
                   >
+                    <button
+                      type="button"
+                      className="text-drag-strip"
+                      aria-label="Drag to move text"
+                      onPointerDown={(e) =>
+                        onFloatingTextPointerDown(e, "move")
+                      }
+                    >
+                      Drag to move
+                    </button>
                     <input
                       className="text-edit-input"
                       value={floatingText.text}
@@ -1998,10 +2063,12 @@ export function PageEditor({ documentId, pageId }: Props) {
           <p className="panel-title">Add Text</p>
           <p className="hint">
             {floatingText
-              ? "Format with the floating toolbar · rotate below · Apply changes."
+              ? textFormatOpen
+                ? "Format text, then Done to drag into place and Apply."
+                : "Drag text where you want · Aa to format · Apply to finish."
               : placeMode === "text"
                 ? "Tap the page to place text."
-                : "Place text, then format with the toolbar on the page."}
+                : "Place text, drag it into position, then apply."}
           </p>
           {!floatingText && (
             <label className="field">
@@ -2019,6 +2086,27 @@ export function PageEditor({ documentId, pageId }: Props) {
                 }}
               />
             </label>
+          )}
+          {floatingText && (
+            <div className="row-actions" style={{ marginBottom: "0.35rem" }}>
+              <button
+                type="button"
+                className={`mini-chip ${!textFormatOpen ? "is-active" : ""}`}
+                onClick={() => {
+                  setTextFormatOpen(false);
+                  setStatus("Drag text where you want · then Apply");
+                }}
+              >
+                Move
+              </button>
+              <button
+                type="button"
+                className={`mini-chip ${textFormatOpen ? "is-active" : ""}`}
+                onClick={() => setTextFormatOpen(true)}
+              >
+                Format
+              </button>
+            </div>
           )}
           {(floatingText || placeMode === "text") && (
             <>

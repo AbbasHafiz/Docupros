@@ -58,6 +58,7 @@ type Props = {
   onMovePointerDown?: (e: React.PointerEvent) => void;
   onDuplicate?: () => void;
   onDelete: () => void;
+  onClose?: () => void;
   showMove?: boolean;
   showDuplicate?: boolean;
   className?: string;
@@ -69,6 +70,7 @@ export function TextFormatToolbar({
   onMovePointerDown,
   onDuplicate,
   onDelete,
+  onClose,
   showMove = true,
   showDuplicate = true,
   className = "",
@@ -215,6 +217,17 @@ export function TextFormatToolbar({
           🗑
         </span>
       </button>
+
+      {onClose && (
+        <button
+          type="button"
+          className="tft-btn tft-done"
+          aria-label="Done formatting — drag to place"
+          onClick={onClose}
+        >
+          Done
+        </button>
+      )}
 
       {panel === "size" && (
         <div className="tft-panel" role="dialog" aria-label="Font size">
