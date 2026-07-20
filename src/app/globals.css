@@ -2351,7 +2351,7 @@ body.app-shell:has(.doc-view) {
 }
 
 .cs-stage.is-text-dragging {
-  overflow: hidden !important;
+  /* Lock pan via touch-action only — do not hide overflow (scrollbar jump) */
   touch-action: none !important;
 }
 
