@@ -1,8 +1,103 @@
 import { loadImage } from "./imageProcessing";
 import type { BBox, EnhanceAdjustments, OcrWord } from "./types";
 
+/** Body text face that reads like printed documents (not UI sans). */
+export const DOC_TEXT_FONT =
+  '"Times New Roman", Times, "Liberation Serif", Georgia, serif';
+
 function clamp(v: number, min = 0, max = 255) {
   return Math.max(min, Math.min(max, v));
+}
+
+/** Estimate printed glyph size from an OCR word box. */
+export function fontSizeFromBBox(bbox: BBox): number {
+  const boxH = Math.max(8, bbox.y1 - bbox.y0);
+  return Math.max(8, Math.min(160, Math.round(boxH * 0.78)));
+}
+
+/** Typical body size from a set of OCR words (median height). */
+export function typicalDocFontSize(words: OcrWord[]): number | null {
+  const heights = words
+    .map((w) => w.bbox.y1 - w.bbox.y0)
+    .filter((h) => h >= 8 && h <= 120)
+    .sort((a, b) => a - b);
+  if (!heights.length) return null;
+  const mid = heights[Math.floor(heights.length / 2)];
+  return Math.max(8, Math.round(mid * 0.78));
+}
+
+function nearestWord(words: OcrWord[], x: number, y: number): OcrWord | null {
+  if (!words.length) return null;
+  let best: OcrWord | null = null;
+  let bestD = Infinity;
+  for (const w of words) {
+    const cx = (w.bbox.x0 + w.bbox.x1) / 2;
+    const cy = (w.bbox.y0 + w.bbox.y1) / 2;
+    const d = Math.hypot(cx - x, cy - y);
+    if (d < bestD) {
+      bestD = d;
+      best = w;
+    }
+  }
+  return best;
+}
+
+export function matchDocTextStyle(
+  words: OcrWord[],
+  x: number,
+  y: number,
+): { fontSize: number; color: string } {
+  const near = nearestWord(words, x, y);
+  if (near) {
+    return { fontSize: fontSizeFromBBox(near.bbox), color: "#111111" };
+  }
+  const typical = typicalDocFontSize(words);
+  return { fontSize: typical ?? 28, color: "#111111" };
+}
+
+/** Sample dark ink color inside a word box (before erase). */
+export async function sampleInkColor(
+  imageSrc: string,
+  bbox: BBox,
+): Promise<string> {
+  try {
+    const img = await loadImage(imageSrc);
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return "#111111";
+    ctx.drawImage(img, 0, 0);
+    const x0 = Math.max(0, Math.floor(bbox.x0));
+    const y0 = Math.max(0, Math.floor(bbox.y0));
+    const x1 = Math.min(canvas.width, Math.ceil(bbox.x1));
+    const y1 = Math.min(canvas.height, Math.ceil(bbox.y1));
+    const w = Math.max(1, x1 - x0);
+    const h = Math.max(1, y1 - y0);
+    const data = ctx.getImageData(x0, y0, w, h).data;
+    let r = 0;
+    let g = 0;
+    let b = 0;
+    let n = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const pr = data[i];
+      const pg = data[i + 1];
+      const pb = data[i + 2];
+      const lum = 0.299 * pr + 0.587 * pg + 0.114 * pb;
+      // Keep darker ink-like pixels only
+      if (lum > 140) continue;
+      r += pr;
+      g += pg;
+      b += pb;
+      n++;
+    }
+    if (!n) return "#111111";
+    const toHex = (v: number) =>
+      Math.round(v).toString(16).padStart(2, "0");
+    return `#${toHex(r / n)}${toHex(g / n)}${toHex(b / n)}`;
+  } catch {
+    return "#111111";
+  }
 }
 
 async function withCanvas(
@@ -195,7 +290,13 @@ export async function replaceWordOnImage(
   imageSrc: string,
   word: OcrWord,
   newText: string,
-  options?: { fontFamily?: string; color?: string },
+  options?: {
+    fontFamily?: string;
+    color?: string;
+    fontSize?: number;
+    /** When false, keep chosen size even if slightly wider than the box. */
+    fitWidth?: boolean;
+  },
 ): Promise<string> {
   const cleared = await eraseRegion(imageSrc, word.bbox, 3);
   if (!newText.trim()) return cleared;
@@ -204,23 +305,26 @@ export async function replaceWordOnImage(
     const { x0, y0, x1, y1 } = word.bbox;
     const boxW = Math.max(8, x1 - x0);
     const boxH = Math.max(8, y1 - y0);
-    let fontSize = Math.max(10, Math.floor(boxH * 0.82));
-    const family = options?.fontFamily ?? "Arial, Helvetica, sans-serif";
+    let fontSize =
+      options?.fontSize ?? Math.max(10, Math.floor(boxH * 0.78));
+    const family = options?.fontFamily ?? DOC_TEXT_FONT;
     const color = options?.color ?? "#111111";
+    const fitWidth = options?.fitWidth !== false;
 
     ctx.fillStyle = color;
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
 
-    // Shrink font to fit width
-    for (let i = 0; i < 24; i++) {
-      ctx.font = `600 ${fontSize}px ${family}`;
-      if (ctx.measureText(newText).width <= boxW * 1.05) break;
-      fontSize -= 1;
-      if (fontSize < 8) break;
+    if (fitWidth) {
+      for (let i = 0; i < 36; i++) {
+        ctx.font = `${fontSize}px ${family}`;
+        if (ctx.measureText(newText).width <= boxW * 1.08) break;
+        fontSize -= 1;
+        if (fontSize < 8) break;
+      }
     }
 
-    ctx.font = `600 ${fontSize}px ${family}`;
+    ctx.font = `${fontSize}px ${family}`;
     ctx.fillText(newText, x0 + 1, y0 + boxH / 2);
   });
 }
@@ -267,11 +371,13 @@ export async function drawFreeText(
   y: number,
   fontSize: number,
   color = "#111111",
+  options?: { fontFamily?: string },
 ): Promise<string> {
   if (!text.trim()) return imageSrc;
+  const family = options?.fontFamily ?? DOC_TEXT_FONT;
   return withCanvas(imageSrc, (ctx) => {
     ctx.fillStyle = color;
-    ctx.font = `600 ${fontSize}px Arial, Helvetica, sans-serif`;
+    ctx.font = `${fontSize}px ${family}`;
     ctx.textBaseline = "top";
     ctx.fillText(text, x, y);
   });

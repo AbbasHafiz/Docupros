@@ -30,16 +30,21 @@ import { recognizePage } from "@/lib/ocr";
 import {
   applyEnhanceAdjustments,
   applySignature,
+  DOC_TEXT_FONT,
   drawAnnotationStroke,
   drawFreeText,
   eraseRegion,
   findReplaceOnImage,
+  fontSizeFromBBox,
   handwritingEraseAtPoints,
+  matchDocTextStyle,
   rebuildDocumentText,
   removeHandwriting,
   replaceWordOnImage,
   rotateImage,
+  sampleInkColor,
   smartEraseAtPoints,
+  typicalDocFontSize,
   type HandwritingMode,
 } from "@/lib/editOperations";
 import { documentHref } from "@/lib/routes";
@@ -110,6 +115,8 @@ export function PageEditor({ documentId, pageId }: Props) {
   const [words, setWords] = useState<OcrWord[]>([]);
   const [selectedWordId, setSelectedWordId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+  const [editFontSize, setEditFontSize] = useState(28);
+  const [editColor, setEditColor] = useState("#111111");
   const [findText, setFindText] = useState("");
   const [replaceText, setReplaceText] = useState("");
   const [ocrProgress, setOcrProgress] = useState(0);
@@ -445,6 +452,7 @@ export function PageEditor({ documentId, pageId }: Props) {
         floatingText.y,
         floatingText.fontSize,
         floatingText.color,
+        { fontFamily: DOC_TEXT_FONT },
       );
       await persistPage(next);
       setFloatingText(null);
@@ -463,10 +471,16 @@ export function PageEditor({ documentId, pageId }: Props) {
   const bumpFloatingSize = (delta: number) => {
     if (!floatingText) return;
     const next = Math.round(
-      Math.min(120, Math.max(12, floatingText.fontSize + delta)),
+      Math.min(120, Math.max(8, floatingText.fontSize + delta)),
     );
     setFloatingText({ ...floatingText, fontSize: next });
     setAddFontSize(next);
+  };
+
+  const bumpEditSize = (delta: number) => {
+    setEditFontSize((s) =>
+      Math.round(Math.min(120, Math.max(8, s + delta))),
+    );
   };
 
   const onFloatingTextPointerDown = (
@@ -569,7 +583,26 @@ export function PageEditor({ documentId, pageId }: Props) {
     if (tool === "addText") {
       if (!addText.trim()) setAddText("Text");
       setPlaceMode("text");
-      setStatus("Tap the page where you want the text");
+      if (page && !words.length) {
+        setBusy(true);
+        setStatus("Reading page text size…");
+        try {
+          const result = await recognizePage(page.imageDataUrl, setOcrProgress);
+          setWords(result.words);
+          await persistPage(page.imageDataUrl, {
+            ocrText: result.text,
+            ocrWords: result.words,
+          });
+          const typical = typicalDocFontSize(result.words);
+          if (typical) setAddFontSize(typical);
+        } finally {
+          setBusy(false);
+        }
+      } else {
+        const typical = typicalDocFontSize(words);
+        if (typical) setAddFontSize(typical);
+      }
+      setStatus("Tap the page — text matches document font size");
       return;
     }
 
@@ -653,16 +686,20 @@ export function PageEditor({ documentId, pageId }: Props) {
     if (placeMode === "text") {
       const label = (addText.trim() || "Text").slice(0, 200);
       if (!addText.trim()) setAddText(label);
+      const matched = matchDocTextStyle(words, pt.x, pt.y);
+      const size = matched.fontSize || addFontSize;
+      setAddFontSize(size);
+      setAddColor(matched.color);
       // Place a floating text box — drag handle to move, resize handle / A± to size
       setFloatingText({
         text: label,
         x: pt.x,
         y: pt.y,
-        fontSize: addFontSize,
-        color: addColor,
+        fontSize: size,
+        color: matched.color,
       });
       setPlaceMode(null);
-      setStatus("Drag the handle to move · use □ to resize · Apply when done");
+      setStatus("Drag the handle to move · A+/A− to match size · Apply when done");
       return;
     }
 
@@ -698,6 +735,9 @@ export function PageEditor({ documentId, pageId }: Props) {
       if (hit) {
         setSelectedWordId(hit.id);
         setEditText(hit.text);
+        const size = fontSizeFromBBox(hit.bbox);
+        setEditFontSize(size);
+        void sampleInkColor(page.imageDataUrl, hit.bbox).then(setEditColor);
         if (zoom < 2) setZoomClamped(2);
         // scroll after zoom repaint
         window.setTimeout(() => scrollWordIntoView(hit), 80);
@@ -819,7 +859,12 @@ export function PageEditor({ documentId, pageId }: Props) {
     if (!word) return;
     setBusy(true);
     try {
-      const next = await replaceWordOnImage(page.imageDataUrl, word, editText);
+      const next = await replaceWordOnImage(page.imageDataUrl, word, editText, {
+        fontFamily: DOC_TEXT_FONT,
+        color: editColor,
+        fontSize: editFontSize,
+        fitWidth: false,
+      });
       const nextWords = words
         .filter((w) => w.id !== word.id)
         .concat(editText.trim() ? [{ ...word, text: editText.trim() }] : []);
@@ -1167,6 +1212,8 @@ export function PageEditor({ documentId, pageId }: Props) {
                     top: floatingText.y * scale,
                     fontSize: floatingText.fontSize * scale,
                     color: floatingText.color,
+                    fontFamily: DOC_TEXT_FONT,
+                    fontWeight: 400,
                   }}
                   onTouchStart={onFloatingTextTouchStart}
                   onTouchMove={onFloatingTextTouchMove}
@@ -1324,6 +1371,40 @@ export function PageEditor({ documentId, pageId }: Props) {
                 <input
                   value={editText}
                   onChange={(e) => setEditText(e.target.value)}
+                  style={{ fontFamily: DOC_TEXT_FONT, fontSize: "1.05rem" }}
+                />
+              </label>
+              <div className="font-size-row">
+                <span className="hint">
+                  Size matches document · {editFontSize}px
+                </span>
+                <div className="row-actions">
+                  <button
+                    type="button"
+                    className="btn-secondary font-size-btn"
+                    aria-label="Decrease font size"
+                    onClick={() => bumpEditSize(-2)}
+                  >
+                    A−
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary font-size-btn"
+                    aria-label="Increase font size"
+                    onClick={() => bumpEditSize(2)}
+                  >
+                    A+
+                  </button>
+                </div>
+              </div>
+              <label className="slider-row">
+                <span>Fine tune</span>
+                <input
+                  type="range"
+                  min={8}
+                  max={96}
+                  value={editFontSize}
+                  onChange={(e) => setEditFontSize(Number(e.target.value))}
                 />
               </label>
               <div className="row-actions">
@@ -1344,7 +1425,10 @@ export function PageEditor({ documentId, pageId }: Props) {
               </div>
             </div>
           ) : (
-            <p className="hint">Tap a highlighted word on the page.</p>
+            <p className="hint">
+              Tap a highlighted word — replacement uses the same document font
+              and size (adjust with A+/A−).
+            </p>
           )}
           <div className="text-edit-box">
             <p className="subhead">Find & replace</p>
@@ -1574,10 +1658,10 @@ export function PageEditor({ documentId, pageId }: Props) {
           <p className="panel-title">Add Text</p>
           <p className="hint">
             {floatingText
-              ? "Drag the ⠿ handle to move. Drag the corner □ or tap A+/A− to resize. Then Apply."
+              ? "Uses document-style font. Drag ⠿ to move · A+/A− to resize · Apply."
               : placeMode === "text"
-                ? "Tap the page where you want the text."
-                : "Tap Add Text, then tap the page to place movable text."}
+                ? "Tap the page — size matches nearby document text."
+                : "Place text that matches the document font and size."}
           </p>
           <label className="field">
             <span>Text</span>
@@ -1591,13 +1675,49 @@ export function PageEditor({ documentId, pageId }: Props) {
                 }
               }}
               placeholder="Type text"
+              style={{ fontFamily: DOC_TEXT_FONT, fontSize: "1.05rem" }}
             />
           </label>
+          <div className="font-size-row">
+            <span className="hint">
+              Size · {floatingText?.fontSize ?? addFontSize}px
+            </span>
+            <div className="row-actions">
+              <button
+                type="button"
+                className="btn-secondary font-size-btn"
+                aria-label="Decrease font size"
+                onClick={() => {
+                  if (floatingText) bumpFloatingSize(-2);
+                  else
+                    setAddFontSize((s) =>
+                      Math.round(Math.min(120, Math.max(8, s - 2))),
+                    );
+                }}
+              >
+                A−
+              </button>
+              <button
+                type="button"
+                className="btn-secondary font-size-btn"
+                aria-label="Increase font size"
+                onClick={() => {
+                  if (floatingText) bumpFloatingSize(2);
+                  else
+                    setAddFontSize((s) =>
+                      Math.round(Math.min(120, Math.max(8, s + 2))),
+                    );
+                }}
+              >
+                A+
+              </button>
+            </div>
+          </div>
           <label className="slider-row">
-            <span>Size {floatingText?.fontSize ?? addFontSize}</span>
+            <span>Fine tune</span>
             <input
               type="range"
-              min={12}
+              min={8}
               max={96}
               value={floatingText?.fontSize ?? addFontSize}
               onChange={(e) => {
@@ -1610,7 +1730,7 @@ export function PageEditor({ documentId, pageId }: Props) {
             />
           </label>
           <div className="row-actions">
-            {["#111111", "#e11d48", "#2563eb", "#16a34a", "#ca8a04"].map(
+            {["#111111", "#1f2937", "#e11d48", "#2563eb", "#16a34a"].map(
               (c) => (
                 <button
                   key={c}
