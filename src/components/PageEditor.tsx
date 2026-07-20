@@ -186,6 +186,11 @@ export function PageEditor({ documentId, pageId }: Props) {
     Boolean(floatingText) ||
     tab === "markup";
 
+  const isDrawingTool =
+    imageTool === "smartErase" ||
+    imageTool === "removeHandwriting" ||
+    (tab === "markup" && (markupTool === "pen" || markupTool === "highlight"));
+
   useEffect(() => {
     let cancelled = false;
     void getDocument(documentId).then((d) => {
@@ -1092,12 +1097,15 @@ export function PageEditor({ documentId, pageId }: Props) {
               Fit
             </button>
             {needsPrecisionZoom && zoom < 1.5 && (
-              <span className="cs-zoom-hint">Pinch or + to zoom</span>
+              <span className="cs-zoom-hint">Pinch or + · scroll to pan</span>
+            )}
+            {zoom > 1 && !needsPrecisionZoom && (
+              <span className="cs-zoom-hint">Scroll to pan</span>
             )}
           </div>
 
           <div
-            className={`cs-stage ${zoom > 1 ? "is-zoomed" : ""}`}
+            className={`cs-stage ${zoom > 1 ? "is-zoomed" : ""} ${isDrawingTool ? "is-drawing" : ""}`}
             ref={stageRef}
             onTouchStart={(e) => {
               if (floatingText) return;

@@ -494,7 +494,7 @@ export function DocumentViewer({ id }: Props) {
             Fit V
           </button>
           <span className="cs-zoom-hint">
-            Pinch · scroll vertically to check watermark
+            Pinch · scroll to check watermark
           </span>
         </div>
         <div

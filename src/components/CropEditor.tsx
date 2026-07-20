@@ -200,6 +200,9 @@ export function CropEditor({ imageSrc, quad, onChange }: Props) {
         {zoom <= 1.05 && (
           <span className="cs-zoom-hint">Pinch to zoom · drag corners</span>
         )}
+        {zoom > 1.05 && (
+          <span className="cs-zoom-hint">Scroll to pan · drag corners</span>
+        )}
       </div>
       <div
         className={`crop-viewport ${zoom > 1 ? "is-zoomed" : ""}`}
