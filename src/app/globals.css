@@ -393,6 +393,90 @@ body.app-shell:has(.doc-view) {
   flex-direction: column;
   background: #f7f8f8;
   color: var(--ink);
+  /* Keep stage + sheets in one column so zoomed pages don't slide under tabs */
+  overflow: hidden;
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
+.cs-sheet,
+.cs-bottom,
+.cs-zoom-bar,
+.cs-pager,
+.cs-topbar {
+  flex-shrink: 0;
+}
+
+.cs-sheet-add-text {
+  max-height: min(32vh, 280px);
+}
+
+.cs-editor.is-text-placing .cs-topbar,
+.cs-editor.is-text-placing .busy-bar {
+  display: none;
+}
+
+.cs-editor.is-text-placing .cs-stage,
+.cs-stage.is-placing-text {
+  flex: 1;
+  min-height: 0;
+  padding-bottom: 4.5rem; /* room above place dock */
+}
+
+.cs-editor.is-text-dragging .text-place-dock {
+  display: none;
+}
+
+.text-place-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.75rem calc(0.55rem + env(safe-area-inset-bottom, 0px));
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid #e2e8f0;
+  box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.08);
+}
+
+.text-place-dock-hint {
+  flex: 1;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0369a1;
+}
+
+.text-place-dock-btn {
+  appearance: none;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.text-place-dock-btn.is-apply {
+  background: #16a34a;
+  border-color: #15803d;
+  color: #fff;
+}
+
+.text-place-dock-btn.is-apply:disabled {
+  opacity: 0.45;
+}
+
+.text-edit-selection.is-placing {
+  cursor: grab;
+  box-shadow: 0 4px 18px rgba(14, 165, 233, 0.35);
+}
+
+.text-edit-selection.is-placing:active {
+  cursor: grabbing;
 }
 
 .cs-topbar {
@@ -1175,6 +1259,10 @@ body.app-shell:has(.doc-view) {
 .doc-view {
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+.cs-editor {
+  overflow: hidden;
 }
 
 .tools-page {

@@ -241,6 +241,9 @@ export function PageEditor({ documentId, pageId }: Props) {
 
   const page = doc?.pages[pageIndex];
 
+  /** Move/place mode: format toolbar closed — clear the canvas for positioning */
+  const isTextPlacing = Boolean(floatingText && !textFormatOpen);
+
   const syncHistoryFlags = () => {
     setCanUndo(undoStackRef.current.length > 0);
     setCanRedo(redoStackRef.current.length > 0);
@@ -1264,7 +1267,9 @@ export function PageEditor({ documentId, pageId }: Props) {
   }
 
   return (
-    <div className="cs-editor">
+    <div
+      className={`cs-editor ${isTextPlacing ? "is-text-placing" : ""} ${textDragging ? "is-text-dragging" : ""} ${imageTool === "addText" ? "is-add-text" : ""}`}
+    >
       <header className="cs-topbar">
         <button
           type="button"
@@ -1354,6 +1359,7 @@ export function PageEditor({ documentId, pageId }: Props) {
         </div>
       ) : (
         <>
+          {!isTextPlacing && (
           <div className="cs-zoom-bar" role="toolbar" aria-label="Zoom">
             <button
               type="button"
@@ -1402,9 +1408,10 @@ export function PageEditor({ documentId, pageId }: Props) {
               <span className="cs-zoom-hint">Scroll to pan</span>
             )}
           </div>
+          )}
 
           <div
-            className={`cs-stage ${zoom > 1 ? "is-zoomed" : ""} ${isDrawingTool ? "is-drawing" : ""} ${floatingText ? "has-text-edit" : ""} ${textDragging ? "is-text-dragging" : ""}`}
+            className={`cs-stage ${zoom > 1 ? "is-zoomed" : ""} ${isDrawingTool ? "is-drawing" : ""} ${floatingText ? "has-text-edit" : ""} ${textDragging ? "is-text-dragging" : ""} ${isTextPlacing ? "is-placing-text" : ""}`}
             ref={stageRef}
             onTouchStart={(e) => {
               if (floatingText) return;
@@ -1528,51 +1535,9 @@ export function PageEditor({ documentId, pageId }: Props) {
                         setStatus("Drag text where you want · then Apply");
                       }}
                     />
-                  ) : (
-                    <div
-                      className="text-place-bar"
-                      role="toolbar"
-                      aria-label="Place text"
-                    >
-                      <button
-                        type="button"
-                        className="text-place-drag"
-                        aria-label="Drag to move text"
-                        onPointerDown={(e) =>
-                          onFloatingTextPointerDown(e, "move")
-                        }
-                      >
-                        <span aria-hidden>✥</span> Drag
-                      </button>
-                      <button
-                        type="button"
-                        className="text-place-btn"
-                        aria-label="Open format toolbar"
-                        onClick={() => setTextFormatOpen(true)}
-                      >
-                        Aa
-                      </button>
-                      <button
-                        type="button"
-                        className="text-place-btn is-apply"
-                        aria-label="Apply text"
-                        disabled={busy || !floatingText.text.trim()}
-                        onClick={() => void applyFloatingText()}
-                      >
-                        ✓
-                      </button>
-                      <button
-                        type="button"
-                        className="text-place-btn"
-                        aria-label="Cancel text"
-                        onClick={cancelFloatingText}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  )}
+                  ) : null}
                   <div
-                    className="text-edit-selection"
+                    className={`text-edit-selection ${isTextPlacing ? "is-placing" : ""}`}
                     style={{
                       transform:
                         floatingText.rotation !== 0
@@ -1580,17 +1545,21 @@ export function PageEditor({ documentId, pageId }: Props) {
                           : undefined,
                       transformOrigin: "top left",
                     }}
-                  >
-                    <button
-                      type="button"
-                      className="text-drag-strip"
-                      aria-label="Drag to move text"
-                      onPointerDown={(e) =>
-                        onFloatingTextPointerDown(e, "move")
+                    onPointerDown={(e) => {
+                      // Whole box is the drag handle in place mode (not the text input)
+                      if (
+                        isTextPlacing &&
+                        (e.target as HTMLElement).tagName !== "INPUT"
+                      ) {
+                        onFloatingTextPointerDown(e, "move");
                       }
-                    >
-                      Drag to move
-                    </button>
+                    }}
+                  >
+                    {isTextPlacing && !textDragging && (
+                      <div className="text-drag-strip" aria-hidden>
+                        Drag to place
+                      </div>
+                    )}
                     <input
                       className="text-edit-input"
                       value={floatingText.text}
@@ -1614,18 +1583,27 @@ export function PageEditor({ documentId, pageId }: Props) {
                           text: v,
                         });
                       }}
-                      onPointerDown={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        // In place mode, dragging the input also moves the box
+                        if (isTextPlacing) {
+                          onFloatingTextPointerDown(e, "move");
+                        }
+                      }}
+                      readOnly={isTextPlacing}
                     />
-                    <button
-                      type="button"
-                      className="floating-text-resize"
-                      aria-label="Resize text"
-                      onPointerDown={(e) =>
-                        onFloatingTextPointerDown(e, "resize")
-                      }
-                      onPointerUp={onFloatingTextPointerUp}
-                      onPointerCancel={onFloatingTextPointerUp}
-                    />
+                    {!isTextPlacing && (
+                      <button
+                        type="button"
+                        className="floating-text-resize"
+                        aria-label="Resize text"
+                        onPointerDown={(e) =>
+                          onFloatingTextPointerDown(e, "resize")
+                        }
+                        onPointerUp={onFloatingTextPointerUp}
+                        onPointerCancel={onFloatingTextPointerUp}
+                      />
+                    )}
                   </div>
                 </div>
               )}
@@ -1695,6 +1673,7 @@ export function PageEditor({ documentId, pageId }: Props) {
             </div>
           </div>
 
+          {!isTextPlacing && (
           <div className="cs-pager">
             <button
               type="button"
@@ -1718,6 +1697,7 @@ export function PageEditor({ documentId, pageId }: Props) {
               ›
             </button>
           </div>
+          )}
         </>
       )}
 
@@ -2062,14 +2042,12 @@ export function PageEditor({ documentId, pageId }: Props) {
         </div>
       )}
 
-      {!cropRaw && imageTool === "addText" && (
-        <div className="cs-sheet">
+      {!cropRaw && imageTool === "addText" && !isTextPlacing && (
+        <div className="cs-sheet cs-sheet-add-text">
           <p className="panel-title">Add Text</p>
           <p className="hint">
             {floatingText
-              ? textFormatOpen
-                ? "Format text, then Done to drag into place and Apply."
-                : "Drag text where you want · Aa to format · Apply to finish."
+              ? "Format text, then Done / Move to place on the page."
               : placeMode === "text"
                 ? "Tap the page to place text."
                 : "Place text, drag it into position, then apply."}
@@ -2095,13 +2073,13 @@ export function PageEditor({ documentId, pageId }: Props) {
             <div className="row-actions" style={{ marginBottom: "0.35rem" }}>
               <button
                 type="button"
-                className={`mini-chip ${!textFormatOpen ? "is-active" : ""}`}
+                className="mini-chip"
                 onClick={() => {
                   setTextFormatOpen(false);
                   setStatus("Drag text where you want · then Apply");
                 }}
               >
-                Move
+                Move / place
               </button>
               <button
                 type="button"
@@ -2193,13 +2171,41 @@ export function PageEditor({ documentId, pageId }: Props) {
         </div>
       )}
 
-      {!cropRaw && imageTool === "crop" && (
+      {isTextPlacing && !textDragging && (
+        <div className="text-place-dock" role="toolbar" aria-label="Place text">
+          <span className="text-place-dock-hint">Drag text to place</span>
+          <button
+            type="button"
+            className="text-place-dock-btn"
+            onClick={() => setTextFormatOpen(true)}
+          >
+            Format
+          </button>
+          <button
+            type="button"
+            className="text-place-dock-btn is-apply"
+            disabled={busy || !floatingText?.text.trim()}
+            onClick={() => void applyFloatingText()}
+          >
+            Apply
+          </button>
+          <button
+            type="button"
+            className="text-place-dock-btn"
+            onClick={cancelFloatingText}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {!cropRaw && imageTool === "crop" && !isTextPlacing && (
         <div className="cs-sheet">
           <p className="hint">Adjust corners on the crop view above.</p>
         </div>
       )}
 
-      {!cropRaw && tab === "markup" && (
+      {!cropRaw && tab === "markup" && !isTextPlacing && (
         <div className="cs-sheet">
           <div className="row-actions">
             <button
@@ -2245,7 +2251,7 @@ export function PageEditor({ documentId, pageId }: Props) {
         </div>
       )}
 
-      {!cropRaw && tab === "page" && (
+      {!cropRaw && tab === "page" && !isTextPlacing && (
         <div className="cs-sheet">
           <div className="row-actions">
             <button
@@ -2284,50 +2290,52 @@ export function PageEditor({ documentId, pageId }: Props) {
         </div>
       )}
 
-      {/* Bottom CamScanner-style chrome */}
-      <div className="cs-bottom">
-        <div className="cs-tabs">
-          {(
-            [
-              ["images", "Images"],
-              ["markup", "Markup"],
-              ["page", "Page"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={`cs-tab ${tab === id ? "is-active" : ""}`}
-              onClick={() => {
-                setTab(id);
-                if (id !== "images") setImageTool(null);
-                setPlaceMode(null);
-                setCropRaw(null);
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {tab === "images" && (
-          <div className="cs-tools">
-            {IMAGE_TOOLS.map((t) => (
+      {/* Bottom chrome — hidden while placing text so zoomed page is not covered */}
+      {!isTextPlacing && (
+        <div className="cs-bottom">
+          <div className="cs-tabs">
+            {(
+              [
+                ["images", "Images"],
+                ["markup", "Markup"],
+                ["page", "Page"],
+              ] as const
+            ).map(([id, label]) => (
               <button
-                key={t.id}
+                key={id}
                 type="button"
-                className={`cs-tool ${imageTool === t.id ? "is-active" : ""}`}
-                onClick={() => void selectTool(t.id)}
+                className={`cs-tab ${tab === id ? "is-active" : ""}`}
+                onClick={() => {
+                  setTab(id);
+                  if (id !== "images") setImageTool(null);
+                  setPlaceMode(null);
+                  setCropRaw(null);
+                }}
               >
-                <span className="cs-tool-icon" aria-hidden>
-                  {t.icon}
-                </span>
-                <span>{t.label}</span>
+                {label}
               </button>
             ))}
           </div>
-        )}
-      </div>
+
+          {tab === "images" && (
+            <div className="cs-tools">
+              {IMAGE_TOOLS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`cs-tool ${imageTool === t.id ? "is-active" : ""}`}
+                  onClick={() => void selectTool(t.id)}
+                >
+                  <span className="cs-tool-icon" aria-hidden>
+                    {t.icon}
+                  </span>
+                  <span>{t.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <SignaturePad
         open={signOpen}
