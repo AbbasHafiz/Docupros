@@ -2344,7 +2344,8 @@ body.app-shell:has(.doc-view) {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.72);
   box-shadow: 0 2px 12px rgba(11, 28, 36, 0.2);
-  transform: translateZ(0);
+  transform-origin: top left;
+  will-change: transform;
 }
 
 .floating-text-move {

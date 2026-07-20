@@ -165,6 +165,7 @@ export function PageEditor({ documentId, pageId }: Props) {
   const [addText, setAddText] = useState("");
   const [addFontSize, setAddFontSize] = useState(28);
   const [addColor, setAddColor] = useState("#111111");
+  const [addRotation, setAddRotation] = useState(0);
   const [placeMode, setPlaceMode] = useState<"text" | "sign" | null>(null);
   const [floatingText, setFloatingText] = useState<{
     text: string;
@@ -172,6 +173,7 @@ export function PageEditor({ documentId, pageId }: Props) {
     y: number;
     fontSize: number;
     color: string;
+    rotation: number;
   } | null>(null);
   const [scale, setScale] = useState(1);
   const [zoom, setZoom] = useState(1);
@@ -503,7 +505,10 @@ export function PageEditor({ documentId, pageId }: Props) {
         floatingText.y,
         floatingText.fontSize,
         floatingText.color,
-        { fontFamily: DOC_TEXT_FONT },
+        {
+          fontFamily: DOC_TEXT_FONT,
+          rotationDeg: floatingText.rotation,
+        },
       );
       await persistPage(next);
       setFloatingText(null);
@@ -526,6 +531,21 @@ export function PageEditor({ documentId, pageId }: Props) {
     );
     setFloatingText({ ...floatingText, fontSize: next });
     setAddFontSize(next);
+  };
+
+  const setTextRotation = (deg: number) => {
+    // Normalize to -180…180 for a friendly slider range
+    let next = Math.round(deg);
+    while (next > 180) next -= 360;
+    while (next < -180) next += 360;
+    setAddRotation(next);
+    if (floatingText) {
+      setFloatingText({ ...floatingText, rotation: next });
+    }
+  };
+
+  const bumpTextRotation = (delta: number) => {
+    setTextRotation((floatingText?.rotation ?? addRotation) + delta);
   };
 
   const bumpEditSize = (delta: number) => {
@@ -768,9 +788,12 @@ export function PageEditor({ documentId, pageId }: Props) {
         y: pt.y,
         fontSize: size,
         color: matched.color,
+        rotation: addRotation,
       });
       setPlaceMode(null);
-      setStatus("Drag the handle to move · A+/A− to match size · Apply when done");
+      setStatus(
+        "Drag to move · rotate / A± to adjust · Apply when done",
+      );
       return;
     }
 
@@ -1348,6 +1371,8 @@ export function PageEditor({ documentId, pageId }: Props) {
                     color: floatingText.color,
                     fontFamily: DOC_TEXT_FONT,
                     fontWeight: 400,
+                    transform: `rotate(${floatingText.rotation}deg)`,
+                    transformOrigin: "top left",
                   }}
                   onTouchStart={onFloatingTextTouchStart}
                   onTouchMove={onFloatingTextTouchMove}
@@ -1374,6 +1399,30 @@ export function PageEditor({ documentId, pageId }: Props) {
                     {floatingText.text || "Text"}
                   </div>
                   <div className="floating-text-tools">
+                    <button
+                      type="button"
+                      className="floating-text-btn"
+                      aria-label="Rotate left"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        bumpTextRotation(-15);
+                      }}
+                    >
+                      ↺
+                    </button>
+                    <button
+                      type="button"
+                      className="floating-text-btn"
+                      aria-label="Rotate right"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        bumpTextRotation(15);
+                      }}
+                    >
+                      ↻
+                    </button>
                     <button
                       type="button"
                       className="floating-text-btn"
@@ -1835,7 +1884,7 @@ export function PageEditor({ documentId, pageId }: Props) {
           <p className="panel-title">Add Text</p>
           <p className="hint">
             {floatingText
-              ? "Uses document-style font. Drag ⠿ to move · A+/A− to resize · Apply."
+              ? "Drag ⠿ to move · ↺↻ to rotate · A+/A− to resize · Apply."
               : placeMode === "text"
                 ? "Tap the page — size matches nearby document text."
                 : "Place text that matches the document font and size."}
@@ -1904,6 +1953,48 @@ export function PageEditor({ documentId, pageId }: Props) {
                   setFloatingText({ ...floatingText, fontSize: n });
                 }
               }}
+            />
+          </label>
+          <div className="font-size-row">
+            <span className="hint">
+              Rotate · {floatingText?.rotation ?? addRotation}°
+            </span>
+            <div className="row-actions">
+              <button
+                type="button"
+                className="btn-secondary font-size-btn"
+                aria-label="Rotate left 15 degrees"
+                onClick={() => bumpTextRotation(-15)}
+              >
+                ↺
+              </button>
+              <button
+                type="button"
+                className="btn-secondary font-size-btn"
+                aria-label="Rotate right 15 degrees"
+                onClick={() => bumpTextRotation(15)}
+              >
+                ↻
+              </button>
+              <button
+                type="button"
+                className="btn-secondary font-size-btn"
+                aria-label="Reset rotation"
+                onClick={() => setTextRotation(0)}
+              >
+                0°
+              </button>
+            </div>
+          </div>
+          <label className="slider-row">
+            <span>Angle</span>
+            <input
+              type="range"
+              min={-180}
+              max={180}
+              step={1}
+              value={floatingText?.rotation ?? addRotation}
+              onChange={(e) => setTextRotation(Number(e.target.value))}
             />
           </label>
           <div className="row-actions">
