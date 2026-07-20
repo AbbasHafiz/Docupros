@@ -404,21 +404,47 @@ export async function drawAnnotationStroke(
   });
 }
 
-/** Smart erase: brush that aggressively fills dark marks with paper color. */
+/** Smart erase: brush that fills marks with paper color or a chosen solid (white-out etc.). */
+export type SmartEraseFill =
+  | { kind: "auto" }
+  | { kind: "solid"; color: [number, number, number] };
+
+export function parseHexRgb(hex: string): [number, number, number] {
+  const h = hex.replace("#", "");
+  const full =
+    h.length === 3
+      ? h
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : h;
+  const n = Number.parseInt(full, 16);
+  if (!Number.isFinite(n) || full.length !== 6) return [255, 255, 255];
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
 export async function smartEraseAtPoints(
   imageSrc: string,
   points: { x: number; y: number }[],
   brushSize: number,
+  fill: SmartEraseFill = { kind: "auto" },
 ): Promise<string> {
   return withCanvas(imageSrc, (ctx, canvas) => {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const radius = brushSize * 1.15;
+    const solid =
+      fill.kind === "solid"
+        ? fill.color
+        : null;
     for (const p of points) {
-      const [pr, pg, pb] = samplePaperColor(imageData, p.x, p.y, brushSize);
-      // Prefer bright paper sample
-      const paperLum = 0.299 * pr + 0.587 * pg + 0.114 * pb;
-      const fill: [number, number, number] =
-        paperLum > 180 ? [pr, pg, pb] : [248, 248, 248];
+      let fillRgb: [number, number, number];
+      if (solid) {
+        fillRgb = solid;
+      } else {
+        const [pr, pg, pb] = samplePaperColor(imageData, p.x, p.y, brushSize);
+        const paperLum = 0.299 * pr + 0.587 * pg + 0.114 * pb;
+        fillRgb = paperLum > 180 ? [pr, pg, pb] : [248, 248, 248];
+      }
       const r2 = radius * radius;
       const minX = Math.max(0, Math.floor(p.x - radius));
       const maxX = Math.min(canvas.width - 1, Math.ceil(p.x + radius));
@@ -430,18 +456,26 @@ export async function smartEraseAtPoints(
           const dy = y - p.y;
           if (dx * dx + dy * dy > r2) continue;
           const i = (y * canvas.width + x) * 4;
+          if (solid) {
+            // White-out / solid: opaque cover
+            imageData.data[i] = fillRgb[0];
+            imageData.data[i + 1] = fillRgb[1];
+            imageData.data[i + 2] = fillRgb[2];
+            imageData.data[i + 3] = 255;
+            continue;
+          }
           const lum =
             0.299 * imageData.data[i] +
             0.587 * imageData.data[i + 1] +
             0.114 * imageData.data[i + 2];
           // Stronger replace for darker ink/stains; soft blend on midtones
           const t = lum < 200 ? 1 : 0.55;
-          imageData.data[i] = clamp(imageData.data[i] * (1 - t) + fill[0] * t);
+          imageData.data[i] = clamp(imageData.data[i] * (1 - t) + fillRgb[0] * t);
           imageData.data[i + 1] = clamp(
-            imageData.data[i + 1] * (1 - t) + fill[1] * t,
+            imageData.data[i + 1] * (1 - t) + fillRgb[1] * t,
           );
           imageData.data[i + 2] = clamp(
-            imageData.data[i + 2] * (1 - t) + fill[2] * t,
+            imageData.data[i + 2] * (1 - t) + fillRgb[2] * t,
           );
         }
       }

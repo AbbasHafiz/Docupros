@@ -45,7 +45,9 @@ import {
   sampleInkColor,
   smartEraseAtPoints,
   typicalDocFontSize,
+  parseHexRgb,
   type HandwritingMode,
+  type SmartEraseFill,
 } from "@/lib/editOperations";
 import { documentHref } from "@/lib/routes";
 import {
@@ -54,6 +56,44 @@ import {
   type BgQuality,
 } from "@/lib/removeBackground";
 import { ShareSheet } from "./ShareSheet";
+
+const ERASE_FILL_PRESETS: {
+  id: string;
+  label: string;
+  fill: SmartEraseFill;
+  preview: string;
+}[] = [
+  {
+    id: "auto",
+    label: "Auto",
+    fill: { kind: "auto" },
+    preview: "linear-gradient(135deg, #f8fafc, #e2e8f0)",
+  },
+  {
+    id: "white",
+    label: "White out",
+    fill: { kind: "solid", color: [255, 255, 255] },
+    preview: "#ffffff",
+  },
+  {
+    id: "cream",
+    label: "Cream",
+    fill: { kind: "solid", color: [255, 250, 235] },
+    preview: "#fffaeb",
+  },
+  {
+    id: "gray",
+    label: "Gray",
+    fill: { kind: "solid", color: [229, 231, 235] },
+    preview: "#e5e7eb",
+  },
+  {
+    id: "yellow",
+    label: "Yellow",
+    fill: { kind: "solid", color: [254, 249, 195] },
+    preview: "#fef9c3",
+  },
+];
 
 type Props = {
   documentId: string;
@@ -101,6 +141,8 @@ export function PageEditor({ documentId, pageId }: Props) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [brushSize, setBrushSize] = useState(32);
+  const [eraseFillId, setEraseFillId] = useState("auto");
+  const [eraseCustomColor, setEraseCustomColor] = useState("#ffffff");
   const [hwMode, setHwMode] = useState<HandwritingMode>("both");
   const [hwStrength, setHwStrength] = useState(55);
   const [rmbgQuality, setRmbgQuality] = useState<BgQuality>("balanced");
@@ -688,6 +730,24 @@ export function PageEditor({ documentId, pageId }: Props) {
     }
   };
 
+  const resolveEraseFill = (): SmartEraseFill => {
+    if (eraseFillId === "custom") {
+      return { kind: "solid", color: parseHexRgb(eraseCustomColor) };
+    }
+    return (
+      ERASE_FILL_PRESETS.find((p) => p.id === eraseFillId)?.fill ?? {
+        kind: "auto",
+      }
+    );
+  };
+
+  const erasePreviewFill = (): string => {
+    const fill = resolveEraseFill();
+    if (fill.kind === "auto") return "rgba(255,255,255,0.75)";
+    const [r, g, b] = fill.color;
+    return `rgba(${r},${g},${b},0.85)`;
+  };
+
   const onPointerDown = (e: React.PointerEvent) => {
     if (!page || cropRaw) return;
     // Two-finger pinch: ignore secondary pointers and any stroke while pinching
@@ -783,7 +843,7 @@ export function PageEditor({ documentId, pageId }: Props) {
         ctx.fillStyle =
           imageTool === "removeHandwriting"
             ? "rgba(220, 38, 38, 0.35)"
-            : "rgba(255,255,255,0.75)";
+            : erasePreviewFill();
         for (const p of strokePoints.current) {
           ctx.beginPath();
           ctx.arc(p.x * scale, p.y * scale, brushSize * scale, 0, Math.PI * 2);
@@ -843,9 +903,16 @@ export function PageEditor({ documentId, pageId }: Props) {
             page.imageDataUrl,
             points,
             brushSize,
+            resolveEraseFill(),
           );
           await persistPage(next);
-          setStatus("Smart erase applied");
+          setStatus(
+            eraseFillId === "auto"
+              ? "Smart erase applied"
+              : eraseFillId === "white"
+                ? "White-out applied"
+                : "Erase fill applied",
+          );
         } else if (imageTool === "removeHandwriting") {
           const next = await handwritingEraseAtPoints(
             page.imageDataUrl,
@@ -1537,9 +1604,51 @@ export function PageEditor({ documentId, pageId }: Props) {
         <div className="cs-sheet">
           <p className="panel-title">Smart Erase</p>
           <p className="hint">
-            Pinch with two fingers to zoom, then brush with one finger over
-            stains, stamps, or marks — fills with paper color.
+            Pinch to zoom, then brush with one finger. Choose Auto to match
+            paper, or White out / another fill color.
           </p>
+          <div className="row-actions erase-fill-row" role="listbox" aria-label="Erase fill">
+            {ERASE_FILL_PRESETS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                role="option"
+                aria-selected={eraseFillId === p.id}
+                className={`mini-chip erase-fill-chip ${eraseFillId === p.id ? "is-active" : ""}`}
+                onClick={() => setEraseFillId(p.id)}
+              >
+                <span
+                  className="erase-fill-swatch"
+                  style={{ background: p.preview }}
+                  aria-hidden
+                />
+                {p.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              role="option"
+              aria-selected={eraseFillId === "custom"}
+              className={`mini-chip erase-fill-chip ${eraseFillId === "custom" ? "is-active" : ""}`}
+              onClick={() => setEraseFillId("custom")}
+            >
+              <span
+                className="erase-fill-swatch"
+                style={{ background: eraseCustomColor }}
+                aria-hidden
+              />
+              Custom
+            </button>
+            {eraseFillId === "custom" && (
+              <label className="rmbg-color-pick" title="Custom erase color">
+                <input
+                  type="color"
+                  value={eraseCustomColor}
+                  onChange={(e) => setEraseCustomColor(e.target.value)}
+                />
+              </label>
+            )}
+          </div>
           <label className="slider-row">
             <span>Brush {brushSize}px</span>
             <input
