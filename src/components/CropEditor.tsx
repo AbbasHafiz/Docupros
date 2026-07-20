@@ -97,7 +97,7 @@ export function CropEditor({ imageSrc, quad, onChange }: Props) {
     });
   }, [imageSrc, quad, size]);
 
-  const clampZoom = (z: number) => Math.min(4, Math.max(1, z));
+  const clampZoom = (z: number) => Math.min(8, Math.max(1, z));
 
   const toLocal = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current!;
@@ -191,7 +191,7 @@ export function CropEditor({ imageSrc, quad, onChange }: Props) {
         <button
           type="button"
           className="cs-zoom-btn"
-          disabled={zoom >= 4}
+          disabled={zoom >= 8}
           onClick={() => setZoom((z) => clampZoom(z + 0.25))}
           aria-label="Zoom in"
         >

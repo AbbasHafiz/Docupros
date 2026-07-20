@@ -289,8 +289,8 @@ export function FormFillEditor({ documentId }: Props) {
           type="button"
           className="cs-zoom-btn"
           aria-label="Zoom in"
-          disabled={zoom >= 3}
-          onClick={() => setZoom((z) => Math.min(3, Math.round((z + 0.25) * 100) / 100))}
+          disabled={zoom >= 8}
+          onClick={() => setZoom((z) => Math.min(8, Math.round((z + 0.25) * 100) / 100))}
         >
           +
         </button>

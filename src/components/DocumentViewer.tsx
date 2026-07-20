@@ -66,8 +66,8 @@ export function DocumentViewer({ id }: Props) {
     null,
   );
 
-  /** 50%–400% so users can zoom out (fit more vertically) and in */
-  const clampPageZoom = (z: number) => Math.min(4, Math.max(0.5, z));
+  /** 50%–800% so users can zoom out (fit more vertically) and in */
+  const clampPageZoom = (z: number) => Math.min(8, Math.max(0.5, z));
 
   const pinchDistance = (a: React.Touch, b: React.Touch) =>
     Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
@@ -462,7 +462,7 @@ export function DocumentViewer({ id }: Props) {
           <button
             type="button"
             className="cs-zoom-btn"
-            disabled={pageZoom >= 4}
+            disabled={pageZoom >= 8}
             onClick={() => setPageZoom((z) => clampPageZoom(z + 0.25))}
             aria-label="Zoom in"
           >
