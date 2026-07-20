@@ -582,12 +582,6 @@ export function PageEditor({ documentId, pageId }: Props) {
     setStatus("Duplicated — drag to place");
   };
 
-  const bumpEditSize = (delta: number) => {
-    setEditFontSize((s) =>
-      Math.round(Math.min(120, Math.max(8, s + delta))),
-    );
-  };
-
   const onFloatingTextPointerDown = (
     e: React.PointerEvent,
     mode: "move" | "resize" = "move",
