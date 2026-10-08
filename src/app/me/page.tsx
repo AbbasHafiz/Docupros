@@ -18,6 +18,12 @@ export default function MePage() {
       </section>
 
       <div className="settings-list">
+        <Link href="/download" className="settings-row pressable">
+          <span>Download Android APK</span>
+          <span className="settings-chevron" aria-hidden>
+            ›
+          </span>
+        </Link>
         <Link href="/tools" className="settings-row pressable">
           <span>Tools</span>
           <span className="settings-chevron" aria-hidden>
