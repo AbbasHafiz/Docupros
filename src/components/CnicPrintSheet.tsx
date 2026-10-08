@@ -50,7 +50,7 @@ export function CnicPrintSheet({ doc, open, onClose, onStatus }: Props) {
 
       if (action === "print-a4") {
         await printCnic(opts);
-        onStatus?.("Print dialog opened — use 100% / Actual size");
+        onStatus?.("Tap Print to printer — use 100% / Actual size");
         onClose();
         return;
       }

@@ -2,9 +2,8 @@ import { jsPDF } from "jspdf";
 import { loadImage } from "./imageProcessing";
 import {
   escapeHtml,
-  openPrintWindow,
-  triggerPrintWhenReady,
-  writePrintDocument,
+  openPrintPreviewSession,
+  printHtml,
 } from "./printWindow";
 import {
   applyWatermarkToCanvas,
@@ -180,16 +179,8 @@ export async function exportIdCardPdf(
   return pdf.output("blob");
 }
 
-/** Print a single A4 sheet at true physical size (one page). */
-export function printDataUrl(
-  dataUrl: string,
-  title = "Print",
-  existingWindow?: Window | null,
-) {
-  const w = existingWindow ?? openPrintWindow(title);
-  writePrintDocument(
-    w,
-    `<!doctype html><html><head><meta charset="utf-8" /><title>${escapeHtml(title)}</title>
+function idSheetHtml(dataUrl: string, title: string) {
+  return `<!doctype html><html><head><meta charset="utf-8" /><title>${escapeHtml(title)}</title>
     <style>
       @page { size: A4 portrait; margin: 0; }
       html, body {
@@ -212,31 +203,52 @@ export function printDataUrl(
       }
       @media screen {
         body { display: grid; place-items: start center; background: #e5e7eb; padding: 12px; width: auto; height: auto; }
-        img { box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+        img { box-shadow: 0 8px 24px rgba(0,0,0,.18); max-width: 100%; height: auto; width: auto; }
       }
     </style></head><body>
     <img src="${dataUrl}" alt="Print sheet" />
-    </body></html>`,
-  );
-  triggerPrintWhenReady(w);
+    </body></html>`;
+}
+
+/** Print a single A4 sheet at true physical size (one page). */
+export async function printDataUrl(
+  dataUrl: string,
+  title = "Print",
+  existingWindow?: Window | null,
+) {
+  const html = idSheetHtml(dataUrl, title);
+  // Legacy popup path (desktop) when a window was already opened in-gesture
+  if (existingWindow && !existingWindow.closed) {
+    try {
+      existingWindow.document.open();
+      existingWindow.document.write(html);
+      existingWindow.document.close();
+      existingWindow.focus();
+      existingWindow.print();
+      return;
+    } catch {
+      try {
+        existingWindow.close();
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  await printHtml(html, title);
 }
 
 export async function printIdCard(options: IdPrintOptions) {
   const title = options.title ?? "CNIC Print";
-  const w = openPrintWindow(title);
+  const session = openPrintPreviewSession(title);
   try {
     const sheet = await composeIdPrintSheet({
       ...options,
       frontLabel: options.frontLabel ?? "CNIC Front",
       backLabel: options.backLabel ?? "CNIC Back",
     });
-    printDataUrl(sheet, title, w);
+    await session.setHtml(idSheetHtml(sheet, title));
   } catch (err) {
-    try {
-      w.close();
-    } catch {
-      /* ignore */
-    }
+    session.close();
     throw err;
   }
 }
