@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Figtree, Syne } from "next/font/google";
 import { BottomNav } from "@/components/BottomNav";
+import { NativeShellInit } from "@/components/NativeShellInit";
 import { SiteCredit } from "@/components/SiteCredit";
 import "./globals.css";
 
@@ -61,6 +62,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${syne.variable} ${figtree.variable} h-full`}>
       <body className="app-shell antialiased android-app">
+        <NativeShellInit />
         <div className="status-bar-scrub" aria-hidden />
         {children}
         <SiteCredit />

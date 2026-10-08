@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppHeader } from "@/components/AppHeader";
+import { AppVersionLabel } from "@/components/AppVersionLabel";
 
 export default function MePage() {
   return (
@@ -12,6 +13,7 @@ export default function MePage() {
         <div>
           <h2 className="profile-name">Docupros</h2>
           <p className="hint">Local-first scanner · no account needed</p>
+          <AppVersionLabel />
         </div>
       </section>
 

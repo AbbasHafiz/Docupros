@@ -4,14 +4,29 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/write-version.mjs",
     "build": "next build",
+    "postbuild": "node scripts/write-version.mjs",
     "start": "npx --yes serve@14 out -l 3000",
     "start:next": "next start",
     "lint": "eslint",
     "test:smoke": "node scripts/smoke-test.mjs",
-    "test:ops": "node scripts/ops-test.mjs"
+    "test:ops": "node scripts/ops-test.mjs",
+    "version:write": "node scripts/write-version.mjs",
+    "cap:sync": "npm run build && npx cap sync android",
+    "android:sync": "npm run cap:sync",
+    "android:open": "npx cap open android",
+    "android:live": "DOCUPROS_BUNDLED_ONLY=0 npm run cap:sync",
+    "android:bundled": "DOCUPROS_BUNDLED_ONLY=1 npm run cap:sync",
+    "android:add": "npx cap add android"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/keyboard": "^8.0.6",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4",
     "@imgly/background-removal": "^1.7.0",
     "docx": "^9.7.1",
     "idb": "^8.0.3",
@@ -26,6 +41,8 @@
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

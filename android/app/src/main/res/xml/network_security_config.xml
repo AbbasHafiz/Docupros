@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Allow HTTPS to the live Docupros host so the Android shell can update in real time. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">docupros.vercel.app</domain>
+        <domain includeSubdomains="true">vercel.app</domain>
+    </domain-config>
+</network-security-config>
