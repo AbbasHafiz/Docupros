@@ -53,3 +53,6 @@ android/.idea/
 *.dex
 .capacitor/
 
+# Keep the public install APK downloadable from the live site
+!public/downloads/
+!public/downloads/**
