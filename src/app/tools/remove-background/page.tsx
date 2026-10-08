@@ -159,7 +159,7 @@ export default function RemoveBackgroundPage() {
     fillId === "transparent" && result?.startsWith("data:image/png");
 
   return (
-    <main className="home">
+    <main className="home no-nav-page android-page">
       <AppHeader title="Remove Background" backHref="/tools" />
       <p className="hint" style={{ margin: "1rem 0" }}>
         AI cutout for portraits, products, and ID photos — runs on your device.

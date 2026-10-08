@@ -117,7 +117,7 @@ function CollagePageInner() {
   }, [mode]);
 
   return (
-    <main className="home collage-page">
+    <main className="home collage-page no-nav-page android-page">
       <AppHeader
         title={heading}
         backHref={mode === "edit" && !docId ? undefined : "/tools"}

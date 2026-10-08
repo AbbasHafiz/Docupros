@@ -56,11 +56,14 @@ const TABS = [
 
 export function BottomNav() {
   const pathname = usePathname();
+  // Immersive full-screen flows — keep chrome out of the layout
   if (
     pathname?.startsWith("/scan") ||
     pathname?.startsWith("/document") ||
     pathname?.includes("/edit") ||
-    pathname?.includes("/form")
+    pathname?.includes("/form") ||
+    pathname?.startsWith("/tools/collage") ||
+    pathname?.startsWith("/tools/remove-background")
   ) {
     return null;
   }
