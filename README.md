@@ -49,6 +49,8 @@ npm run android:open    # Android Studio
 
 See **[ANDROID.md](./ANDROID.md)** for APK build, live vs bundled mode, and Play Store notes.
 
+**Direct install (phone):** open https://docupros.vercel.app/download — use the ZIP if Chrome blocks the APK.
+
 ## Hosting notes
 
 - App is a static export (`output: "export"`) — all data stays in the browser (IndexedDB).
