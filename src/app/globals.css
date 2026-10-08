@@ -18,9 +18,12 @@
   --radius: 16px;
   --radius-sheet: 28px 28px 0 0;
   --nav-height: 4.25rem;
+  --nav-clearance: calc(var(--nav-height) + 0.85rem + env(safe-area-inset-bottom, 0px));
+  --app-height: 100dvh;
   --font-display: var(--font-syne), "Segoe UI", sans-serif;
   --font-body: var(--font-figtree), "Segoe UI", sans-serif;
   --touch: 48px;
+  --page-x: 1rem;
 }
 
 @theme inline {
@@ -33,13 +36,24 @@
   box-sizing: border-box;
 }
 
+html {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
 html,
 body {
-  min-height: 100%;
+  max-width: 100%;
 }
 
 body {
   margin: 0;
+  width: 100%;
+  height: var(--app-height, 100dvh);
+  max-height: var(--app-height, 100dvh);
+  overflow-x: hidden;
+  overflow-y: hidden;
   color: var(--ink);
   font-family: var(--font-body);
   /* Android-like surface with soft brand atmosphere */
@@ -50,11 +64,20 @@ body {
   background-attachment: fixed;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-  overscroll-behavior-y: contain;
+  overscroll-behavior: none;
 }
 
-body.android-app {
+/* Browser / PWA: respect notch. Native Capacitor already insets the WebView. */
+body.android-app:not(.is-native-app) {
   padding-top: env(safe-area-inset-top, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+body.is-native-app {
+  padding-top: 0;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .status-bar-scrub {
@@ -66,6 +89,14 @@ body.android-app {
   background: color-mix(in srgb, var(--teal) 88%, #000 12%);
   z-index: 100;
   pointer-events: none;
+}
+
+body.is-native-app .status-bar-scrub {
+  display: none;
+}
+
+body.is-native-app .site-credit {
+  display: none;
 }
 
 .pressable {
@@ -93,20 +124,59 @@ a {
 }
 
 .app-shell {
-  min-height: 100dvh;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  width: 100%;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  /* Nav clearance lives on scrollable pages — not the shell — so full-screen
+     flows (scan/editor) are not pushed below the viewport. */
+  padding-bottom: 0;
 }
 
-/* Immersive flows: fill the screen, no bottom-nav gutter */
+/* Tab screens: allow the page itself to scroll inside the locked shell */
+body.app-shell:has(> .home),
+body.app-shell:has(> .tools-page) {
+  overflow-y: hidden;
+}
+
+body.app-shell:has(> .home) > .home,
+body.app-shell:has(> .tools-page) > .tools-page {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* Immersive flows: fill the shell exactly, no bottom-nav gutter */
 body.app-shell:has(.scan-flow),
 body.app-shell:has(.cs-editor),
 body.app-shell:has(.form-editor),
 body.app-shell:has(.doc-view) {
-  height: 100dvh;
-  max-height: 100dvh;
+  height: var(--app-height, 100dvh);
+  max-height: var(--app-height, 100dvh);
   overflow: hidden;
   padding-bottom: 0;
+  padding-top: 0;
+}
+
+body.app-shell > .scan-flow,
+body.app-shell > .cs-editor,
+body.app-shell > .form-editor,
+body.app-shell > .doc-view,
+body.app-shell > .home,
+body.app-shell > .tools-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .app-header {
@@ -127,10 +197,11 @@ body.app-shell:has(.doc-view) {
 .app-header-inner {
   max-width: 960px;
   margin: 0 auto;
-  padding: 0.55rem 0.85rem;
+  padding: 0.55rem var(--page-x);
   min-height: var(--touch);
+  width: 100%;
   display: grid;
-  grid-template-columns: var(--touch) 1fr var(--touch);
+  grid-template-columns: var(--touch) minmax(0, 1fr) var(--touch);
   align-items: center;
   gap: 0.35rem;
 }
@@ -142,6 +213,10 @@ body.app-shell:has(.doc-view) {
   font-size: 1.2rem;
   letter-spacing: -0.03em;
   text-align: center;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .brand-mark,
@@ -182,13 +257,19 @@ body.app-shell:has(.doc-view) {
 .home {
   max-width: 960px;
   margin: 0 auto;
-  padding: 0.85rem 1rem calc(7.5rem + env(safe-area-inset-bottom, 0px));
+  padding: 0.85rem var(--page-x) var(--nav-clearance);
   width: 100%;
+  max-width: min(960px, 100%);
+  box-sizing: border-box;
 }
 
-.android-page .app-header {
-  margin: 0 -1rem 0.35rem;
-  width: calc(100% + 2rem);
+/* Keep headers inside the page — negative margins caused horizontal bleed */
+.android-page .app-header,
+.android-home .app-header,
+.tools-page .app-header {
+  margin: 0 0 0.35rem;
+  width: 100%;
+  max-width: 100%;
 }
 
 .page-subhead {
@@ -231,9 +312,11 @@ body.app-shell:has(.doc-view) {
 
 .quick-actions {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.55rem;
   margin: 0 0 1.1rem;
+  width: 100%;
+  max-width: 100%;
 }
 
 .quick-action {
@@ -388,15 +471,15 @@ body.app-shell:has(.doc-view) {
 
 /* CamScanner-style editor chrome */
 .cs-editor {
-  min-height: 100dvh;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   background: #f7f8f8;
   color: var(--ink);
   /* Keep stage + sheets in one column so zoomed pages don't slide under tabs */
   overflow: hidden;
-  height: 100dvh;
-  max-height: 100dvh;
+  height: 100%;
+  max-height: 100%;
 }
 
 .cs-sheet,
@@ -1207,9 +1290,7 @@ body.app-shell:has(.doc-view) {
   background: rgba(15, 118, 110, 0.06);
 }
 
-.app-shell {
-  padding-bottom: calc(5.8rem + env(safe-area-inset-bottom, 0px));
-}
+/* Shell padding removed — pages use --nav-clearance instead */
 
 .profile-card {
   display: grid;
@@ -1278,9 +1359,12 @@ body.app-shell:has(.doc-view) {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  height: 100dvh;
-  max-height: 100dvh;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  max-height: 100%;
   padding-bottom: 0;
+  box-sizing: border-box;
 }
 
 .scan-flow {
@@ -1299,15 +1383,11 @@ body.app-shell:has(.doc-view) {
 }
 
 .tools-page {
-  max-width: 960px;
+  max-width: min(960px, 100%);
   margin: 0 auto;
-  padding: 0.35rem 1rem calc(7.5rem + env(safe-area-inset-bottom, 0px));
+  padding: 0.35rem var(--page-x) var(--nav-clearance);
   width: 100%;
-}
-
-.tools-page .app-header {
-  margin: 0 -1rem 0.35rem;
-  width: calc(100% + 2rem);
+  box-sizing: border-box;
 }
 
 .tools-head h1 {
@@ -1335,13 +1415,15 @@ body.app-shell:has(.doc-view) {
 
 .tools-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.85rem 0.5rem;
+  width: 100%;
+  max-width: 100%;
 }
 
 @media (min-width: 720px) {
   .tools-grid {
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }
 
@@ -1354,6 +1436,8 @@ body.app-shell:has(.doc-view) {
   font-size: 0.78rem;
   font-weight: 650;
   color: var(--ink-soft);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .tool-tile.is-soon {
@@ -1372,7 +1456,9 @@ body.app-shell:has(.doc-view) {
 
 .tool-label {
   line-height: 1.2;
-  max-width: 5.2rem;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .tool-badge {
@@ -1428,12 +1514,13 @@ body.app-shell:has(.doc-view) {
 }
 
 .files-page {
-  padding-bottom: 6rem;
+  /* clearance already on .home via --nav-clearance */
+  padding-bottom: var(--nav-clearance);
 }
 
 /* PDF form fill */
 .form-editor {
-  min-height: 100dvh;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   background: #f7f8f8;
@@ -1796,8 +1883,8 @@ body.app-shell:has(.doc-view) {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  height: 100dvh;
-  max-height: 100dvh;
+  height: 100%;
+  max-height: 100%;
 }
 
 .scan-flow {
@@ -2438,7 +2525,9 @@ body.app-shell:has(.doc-view) {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
 }
 
 .editor-canvas-wrap {
@@ -3195,9 +3284,14 @@ body.app-shell:has(.doc-view) {
   }
 }
 
+/* Full-screen tool pages (bottom nav hidden) */
+.no-nav-page {
+  padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px)) !important;
+}
+
 /* Collage editor */
 .collage-page {
-  padding-bottom: 5rem;
+  padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
 }
 
 .collage-upload {

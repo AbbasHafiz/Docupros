@@ -1,5 +1,6 @@
 /**
- * Capacitor native shell helpers — status bar, splash, Android back button.
+ * Capacitor native shell helpers — status bar, splash, Android back button,
+ * and a locked visual viewport so screens fit like a native Android app.
  * Safe no-ops when running in a regular browser.
  */
 
@@ -11,8 +12,38 @@ export function isNativeApp(): boolean {
   return Boolean(cap?.isNativePlatform?.());
 }
 
+function syncAppHeight() {
+  if (typeof window === "undefined") return;
+  const vv = window.visualViewport;
+  const height = Math.round(vv?.height ?? window.innerHeight);
+  if (height > 0) {
+    document.documentElement.style.setProperty("--app-height", `${height}px`);
+  }
+}
+
+function lockNativeViewport() {
+  syncAppHeight();
+  window.addEventListener("resize", syncAppHeight);
+  window.visualViewport?.addEventListener("resize", syncAppHeight);
+  window.visualViewport?.addEventListener("scroll", syncAppHeight);
+  window.addEventListener("orientationchange", () => {
+    window.setTimeout(syncAppHeight, 50);
+    window.setTimeout(syncAppHeight, 250);
+  });
+}
+
+/** Always lock height for mobile browsers + native so layout stays in-frame. */
+export function initViewportLock(): void {
+  if (typeof window === "undefined") return;
+  lockNativeViewport();
+}
+
 export async function initNativeShell(): Promise<void> {
-  if (typeof window === "undefined" || !isNativeApp()) return;
+  if (typeof window === "undefined") return;
+
+  initViewportLock();
+
+  if (!isNativeApp()) return;
 
   try {
     const [{ App }, { StatusBar, Style }, { SplashScreen }] = await Promise.all([
@@ -26,6 +57,7 @@ export async function initNativeShell(): Promise<void> {
 
     await StatusBar.setBackgroundColor({ color: "#0f766e" }).catch(() => undefined);
     await StatusBar.setStyle({ style: Style.Dark }).catch(() => undefined);
+    // WebView sits below the system status bar — do not also pad safe-area top in CSS.
     await StatusBar.setOverlaysWebView({ overlay: false }).catch(() => undefined);
     await SplashScreen.hide().catch(() => undefined);
 

@@ -9,7 +9,10 @@ export function SiteCredit() {
     pathname?.startsWith("/scan") ||
     pathname?.startsWith("/document") ||
     pathname?.includes("/edit") ||
-    pathname?.includes("/form")
+    pathname?.includes("/form") ||
+    pathname?.startsWith("/tools/collage") ||
+    pathname?.startsWith("/tools/remove-background") ||
+    pathname?.startsWith("/download")
   ) {
     return null;
   }

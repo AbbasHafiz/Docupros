@@ -50,6 +50,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
   colorScheme: "light",
 };
@@ -60,7 +61,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${syne.variable} ${figtree.variable} h-full`}>
+    <html
+      lang="en"
+      className={`${syne.variable} ${figtree.variable} h-full overflow-hidden`}
+    >
       <body className="app-shell antialiased android-app">
         <NativeShellInit />
         <div className="status-bar-scrub" aria-hidden />
