@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf";
 import { loadImage } from "./imageProcessing";
 import { composeIdPrintSheet, printDataUrl } from "./idPrint";
-import { openPrintWindow } from "./printWindow";
+import { openPrintPreviewSession } from "./printWindow";
 import {
   applyWatermarkToPdfPage,
   normalizeWatermark,
@@ -160,7 +160,7 @@ export async function exportCnicA4Pdf(
 
 export async function printCnic(options: CnicExportOptions) {
   const title = options.title ?? "CNIC Print";
-  const w = openPrintWindow(title);
+  const session = openPrintPreviewSession(title);
   try {
     const sheet = await composeIdPrintSheet({
       front: options.front,
@@ -175,13 +175,9 @@ export async function printCnic(options: CnicExportOptions) {
       cardWidthMm: CNIC_WIDTH_MM,
       cardHeightMm: CNIC_HEIGHT_MM,
     });
-    printDataUrl(sheet, title, w);
+    await printDataUrl(sheet, title);
   } catch (err) {
-    try {
-      w.close();
-    } catch {
-      /* ignore */
-    }
+    session.close();
     throw err;
   }
 }

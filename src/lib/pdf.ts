@@ -1,12 +1,7 @@
 import { jsPDF } from "jspdf";
 import { loadImage } from "./imageProcessing";
 import { printDataUrl } from "./idPrint";
-import {
-  escapeHtml,
-  openPrintWindow,
-  triggerPrintWhenReady,
-  writePrintDocument,
-} from "./printWindow";
+import { escapeHtml, openPrintPreviewSession } from "./printWindow";
 import type { DocumentRecord } from "./types";
 import {
   applyWatermarkToPdfPage,
@@ -192,13 +187,12 @@ export async function printDocumentPages(
 ) {
   if (!pageDataUrls.length) return;
 
-  // Open immediately while we still have the user gesture — otherwise browsers
-  // leave a blank white tab (especially with noopener) after async work.
-  const w = openPrintWindow(title);
+  // Show preparing UI immediately (Android WebView blocks window.open popups).
+  const session = openPrintPreviewSession(title);
   const watermark = normalizeWatermark(options?.watermark);
 
   try {
-    // Higher-res print preview (was 1800) so PDF pages stay sharp
+    // Higher-res print pages so they stay sharp on physical printers
     const normalized: string[] = [];
     for (const src of pageDataUrls) {
       const { dataUrl } = await toPdfJpeg(src, 3600, PDF_EXPORT_JPEG_QUALITY);
@@ -210,8 +204,7 @@ export async function printDocumentPages(
     const parts = normalized
       .map((src) => `<div class="page"><img src="${src}" alt="" /></div>`)
       .join("");
-    writePrintDocument(
-      w,
+    await session.setHtml(
       `<!doctype html><html><head><meta charset="utf-8" /><title>${escapeHtml(title)}</title>
     <style>
       @page { size: A4 portrait; margin: 8mm; }
@@ -235,13 +228,8 @@ export async function printDocumentPages(
       }
     </style></head><body>${parts}</body></html>`,
     );
-    triggerPrintWhenReady(w);
   } catch (err) {
-    try {
-      w.close();
-    } catch {
-      /* ignore */
-    }
+    session.close();
     throw err;
   }
 }

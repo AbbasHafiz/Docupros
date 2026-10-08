@@ -316,13 +316,17 @@ export function DocumentViewer({ id }: Props) {
       return;
     }
     setBusy(true);
+    setRenderStatus("Preparing print…");
     try {
       await printDocumentPages(
         doc.pages.map((p) => p.imageDataUrl),
         doc.title,
         { watermark: pageWatermark },
       );
+      setRenderStatus("Use Print to printer — pick your device");
+      window.setTimeout(() => setRenderStatus(null), 2200);
     } catch (e) {
+      setRenderStatus(null);
       alert(e instanceof Error ? e.message : "Print failed");
     } finally {
       setBusy(false);
