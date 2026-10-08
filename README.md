@@ -37,7 +37,20 @@ npm start
 
 Open **Tools** in the bottom nav.
 
+## Android app (realtime updates)
+
+Native Android wrapper (Capacitor). The app loads **https://docupros.vercel.app**, so every web deploy is live on the next open.
+
+```bash
+npm install
+npm run android:sync    # build site + sync into android/
+npm run android:open    # Android Studio
+```
+
+See **[ANDROID.md](./ANDROID.md)** for APK build, live vs bundled mode, and Play Store notes.
+
 ## Hosting notes
 
 - App is a static export (`output: "export"`) — all data stays in the browser (IndexedDB).
 - Permanent free hosting: connect the GitHub repo to [Vercel](https://vercel.com/new) (one click), or claim the ZeroDeploy drop from the deploy response.
+- Live demo: **https://docupros.vercel.app**
